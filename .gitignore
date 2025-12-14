@@ -1,0 +1,30 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Allure artifacts (generated, not source)
+allure-report/
+**/allure-results/
+
+# Claude Code
+.claude/
+
+# Test artifacts
+*.profraw
+*.profdata
+
+# Environment files
+.env
+.env.local
