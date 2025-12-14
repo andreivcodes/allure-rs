@@ -327,17 +327,49 @@ where
     }
 }
 
+/// Executes a closure with a temporary test context for documentation examples.
+///
+/// This function is useful for running doc tests that use runtime functions
+/// like `step()`, `label()`, etc. without needing the full test infrastructure.
+/// No test results are written to disk.
+///
+/// # Example
+///
+/// ```
+/// use allure_core::runtime::{with_test_context, step, epic};
+///
+/// with_test_context(|| {
+///     epic("My Epic");
+///     step("Do something", || {
+///         // test code
+///     });
+/// });
+/// ```
+#[doc(hidden)]
+pub fn with_test_context<F, R>(f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    let ctx = TestContext::new("doctest", "doctest::example");
+    set_context(ctx);
+    let result = f();
+    let _ = take_context(); // cleanup without writing
+    result
+}
+
 // === Public API functions ===
 
 /// Adds a label to the current test.
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::label;
+/// ```
+/// use allure_core::runtime::{with_test_context, label};
 ///
-/// label("environment", "staging");
-/// label("browser", "chrome");
+/// with_test_context(|| {
+///     label("environment", "staging");
+///     label("browser", "chrome");
+/// });
 /// ```
 pub fn label(name: impl Into<String>, value: impl Into<String>) {
     with_context(|ctx| ctx.add_label(name, value));
@@ -349,10 +381,12 @@ pub fn label(name: impl Into<String>, value: impl Into<String>) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::epic;
+/// ```
+/// use allure_core::runtime::{with_test_context, epic};
 ///
-/// epic("User Management");
+/// with_test_context(|| {
+///     epic("User Management");
+/// });
 /// ```
 pub fn epic(name: impl Into<String>) {
     with_context(|ctx| ctx.add_label_name(LabelName::Epic, name));
@@ -364,10 +398,12 @@ pub fn epic(name: impl Into<String>) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::feature;
+/// ```
+/// use allure_core::runtime::{with_test_context, feature};
 ///
-/// feature("User Registration");
+/// with_test_context(|| {
+///     feature("User Registration");
+/// });
 /// ```
 pub fn feature(name: impl Into<String>) {
     with_context(|ctx| ctx.add_label_name(LabelName::Feature, name));
@@ -379,10 +415,12 @@ pub fn feature(name: impl Into<String>) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::story;
+/// ```
+/// use allure_core::runtime::{with_test_context, story};
 ///
-/// story("User can register with email");
+/// with_test_context(|| {
+///     story("User can register with email");
+/// });
 /// ```
 pub fn story(name: impl Into<String>) {
     with_context(|ctx| ctx.add_label_name(LabelName::Story, name));
@@ -407,11 +445,13 @@ pub fn sub_suite(name: impl Into<String>) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::severity;
+/// ```
+/// use allure_core::runtime::{with_test_context, severity};
 /// use allure_core::Severity;
 ///
-/// severity(Severity::Critical);
+/// with_test_context(|| {
+///     severity(Severity::Critical);
+/// });
 /// ```
 pub fn severity(severity: Severity) {
     with_context(|ctx| ctx.add_label_name(LabelName::Severity, severity.as_str()));
@@ -421,10 +461,12 @@ pub fn severity(severity: Severity) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::owner;
+/// ```
+/// use allure_core::runtime::{with_test_context, owner};
 ///
-/// owner("platform-team");
+/// with_test_context(|| {
+///     owner("platform-team");
+/// });
 /// ```
 pub fn owner(name: impl Into<String>) {
     with_context(|ctx| ctx.add_label_name(LabelName::Owner, name));
@@ -434,11 +476,13 @@ pub fn owner(name: impl Into<String>) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::tag;
+/// ```
+/// use allure_core::runtime::{with_test_context, tag};
 ///
-/// tag("smoke");
-/// tag("regression");
+/// with_test_context(|| {
+///     tag("smoke");
+///     tag("regression");
+/// });
 /// ```
 pub fn tag(name: impl Into<String>) {
     with_context(|ctx| ctx.add_label_name(LabelName::Tag, name));
@@ -448,10 +492,12 @@ pub fn tag(name: impl Into<String>) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::tags;
+/// ```
+/// use allure_core::runtime::{with_test_context, tags};
 ///
-/// tags(&["smoke", "regression", "api"]);
+/// with_test_context(|| {
+///     tags(&["smoke", "regression", "api"]);
+/// });
 /// ```
 pub fn tags(names: &[&str]) {
     with_context(|ctx| {
@@ -472,10 +518,12 @@ pub fn allure_id(id: impl Into<String>) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::title;
+/// ```
+/// use allure_core::runtime::{with_test_context, title};
 ///
-/// title("User can login with valid credentials");
+/// with_test_context(|| {
+///     title("User can login with valid credentials");
+/// });
 /// ```
 pub fn title(name: impl Into<String>) {
     with_context(|ctx| ctx.result.name = name.into());
@@ -513,11 +561,13 @@ pub fn link(url: impl Into<String>, name: Option<String>) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::parameter;
+/// ```
+/// use allure_core::runtime::{with_test_context, parameter};
 ///
-/// parameter("username", "john_doe");
-/// parameter("count", 42);
+/// with_test_context(|| {
+///     parameter("username", "john_doe");
+///     parameter("count", 42);
+/// });
 /// ```
 pub fn parameter(name: impl Into<String>, value: impl ToString) {
     with_context(|ctx| ctx.add_parameter(name, value.to_string()));
@@ -530,28 +580,32 @@ pub fn parameter(name: impl Into<String>, value: impl ToString) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::step;
+/// ```
+/// use allure_core::runtime::{with_test_context, step};
 ///
-/// step("Login to application", || {
-///     step("Enter credentials", || {
-///         // Enter username and password
-///     });
-///     step("Click submit", || {
-///         // Click the submit button
+/// with_test_context(|| {
+///     step("Login to application", || {
+///         step("Enter credentials", || {
+///             // Enter username and password
+///         });
+///         step("Click submit", || {
+///             // Click the submit button
+///         });
 ///     });
 /// });
 /// ```
 ///
 /// Steps can also return values:
 ///
-/// ```ignore
-/// use allure_core::runtime::step;
+/// ```
+/// use allure_core::runtime::{with_test_context, step};
 ///
-/// let result = step("Calculate result", || {
-///     2 + 2
+/// with_test_context(|| {
+///     let result = step("Calculate result", || {
+///         2 + 2
+///     });
+///     assert_eq!(result, 4);
 /// });
-/// assert_eq!(result, 4);
 /// ```
 pub fn step<F, R>(name: impl Into<String>, body: F) -> R
 where
@@ -592,12 +646,14 @@ where
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::log_step;
+/// ```
+/// use allure_core::runtime::{with_test_context, log_step};
 /// use allure_core::Status;
 ///
-/// log_step("Database connection established", Status::Passed);
-/// log_step("Cache was cleared", Status::Passed);
+/// with_test_context(|| {
+///     log_step("Database connection established", Status::Passed);
+///     log_step("Cache was cleared", Status::Passed);
+/// });
 /// ```
 pub fn log_step(name: impl Into<String>, status: Status) {
     with_context(|ctx| {
@@ -610,11 +666,13 @@ pub fn log_step(name: impl Into<String>, status: Status) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::attach_text;
+/// ```
+/// use allure_core::runtime::{with_test_context, attach_text};
 ///
-/// attach_text("API Response", r#"{"status": "ok"}"#);
-/// attach_text("Log Output", "Test completed successfully");
+/// with_test_context(|| {
+///     attach_text("API Response", r#"{"status": "ok"}"#);
+///     attach_text("Log Output", "Test completed successfully");
+/// });
 /// ```
 pub fn attach_text(name: impl Into<String>, content: impl AsRef<str>) {
     with_context(|ctx| ctx.attach_text(name, content));
@@ -626,8 +684,8 @@ pub fn attach_text(name: impl Into<String>, content: impl AsRef<str>) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::attach_json;
+/// ```
+/// use allure_core::runtime::{with_test_context, attach_json};
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
@@ -636,12 +694,13 @@ pub fn attach_text(name: impl Into<String>, content: impl AsRef<str>) {
 ///     email: String,
 /// }
 ///
-/// let user = User {
-///     name: "John".to_string(),
-///     email: "john@example.com".to_string(),
-/// };
-///
-/// attach_json("User Data", &user);
+/// with_test_context(|| {
+///     let user = User {
+///         name: "John".to_string(),
+///         email: "john@example.com".to_string(),
+///     };
+///     attach_json("User Data", &user);
+/// });
 /// ```
 pub fn attach_json<T: serde::Serialize>(name: impl Into<String>, value: &T) {
     with_context(|ctx| ctx.attach_json(name, value));
@@ -651,12 +710,14 @@ pub fn attach_json<T: serde::Serialize>(name: impl Into<String>, value: &T) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::attach_binary;
+/// ```
+/// use allure_core::runtime::{with_test_context, attach_binary};
 /// use allure_core::ContentType;
 ///
-/// let png_data: &[u8] = &[0x89, 0x50, 0x4E, 0x47]; // PNG header
-/// attach_binary("Screenshot", png_data, ContentType::Png);
+/// with_test_context(|| {
+///     let png_data: &[u8] = &[0x89, 0x50, 0x4E, 0x47]; // PNG header
+///     attach_binary("Screenshot", png_data, ContentType::Png);
+/// });
 /// ```
 pub fn attach_binary(name: impl Into<String>, content: &[u8], content_type: ContentType) {
     with_context(|ctx| ctx.attach_binary(name, content, content_type));
@@ -669,11 +730,13 @@ pub fn attach_binary(name: impl Into<String>, content: &[u8], content_type: Cont
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::flaky;
+/// ```
+/// use allure_core::runtime::{with_test_context, flaky};
 ///
-/// flaky();
-/// // Test code that sometimes fails due to network issues
+/// with_test_context(|| {
+///     flaky();
+///     // Test code that sometimes fails due to network issues
+/// });
 /// ```
 pub fn flaky() {
     with_context(|ctx| {
@@ -693,11 +756,13 @@ pub fn flaky() {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::muted;
+/// ```
+/// use allure_core::runtime::{with_test_context, muted};
 ///
-/// muted();
-/// // Test code that shouldn't affect statistics
+/// with_test_context(|| {
+///     muted();
+///     // Test code that shouldn't affect statistics
+/// });
 /// ```
 pub fn muted() {
     with_context(|ctx| {
@@ -715,10 +780,12 @@ pub fn muted() {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use allure_core::runtime::known_issue;
+/// ```
+/// use allure_core::runtime::{with_test_context, known_issue};
 ///
-/// known_issue("https://github.com/example/project/issues/123");
+/// with_test_context(|| {
+///     known_issue("https://github.com/example/project/issues/123");
+/// });
 /// ```
 pub fn known_issue(issue_id: impl Into<String>) {
     let id = issue_id.into();

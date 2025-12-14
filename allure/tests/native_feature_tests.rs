@@ -5,7 +5,7 @@
 //! - #[ignore]
 //! - Result<T, E> return types
 
-use allure::prelude::configure;
+use allure_rs::prelude::configure;
 use allure_macros::allure_test;
 
 // Initialize Allure once before tests run

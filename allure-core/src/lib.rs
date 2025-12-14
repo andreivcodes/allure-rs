@@ -47,8 +47,8 @@ pub use runtime::{
     allure_id, attach_binary, attach_file, attach_json, attach_text, configure, description,
     description_html, display_name, epic, feature, flaky, issue, known_issue, label, link,
     log_step, muted, owner, parameter, parent_suite, run_test, severity, step, story, sub_suite,
-    suite, tag, tags, test_case_id, title, tms, with_context, AllureConfig, AllureConfigBuilder,
-    TestContext,
+    suite, tag, tags, test_case_id, title, tms, with_context, with_test_context, AllureConfig,
+    AllureConfigBuilder, TestContext,
 };
 pub use writer::{compute_history_id, generate_uuid, AllureWriter, DEFAULT_RESULTS_DIR};
 

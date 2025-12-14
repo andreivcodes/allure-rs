@@ -13,7 +13,7 @@ use allure_macros::{
 };
 
 // Runtime functions from prelude
-use allure::prelude::{
+use allure_rs::prelude::{
     bdd, configure, description, display_name, flaky, parameter, step, test_case_id,
 };
 

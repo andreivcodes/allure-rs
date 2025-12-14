@@ -81,7 +81,7 @@ fn is_result_return(output: &ReturnType) -> bool {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use allure_macros::allure_test;
 ///
 /// #[allure_test]
@@ -93,14 +93,9 @@ fn is_result_return(output: &ReturnType) -> bool {
 /// fn test_with_name() {
 ///     assert!(true);
 /// }
-///
-/// // Works with async tests
-/// #[allure_test]
-/// #[tokio::test]
-/// async fn test_async() {
-///     assert!(true);
-/// }
 /// ```
+///
+/// The macro also works with async tests when using `#[tokio::test]`.
 #[proc_macro_attribute]
 pub fn allure_test(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
@@ -486,8 +481,11 @@ fn generate_metadata_setup(metadata: &TestMetadata) -> proc_macro2::TokenStream 
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use allure_macros::allure_step_fn;
+///
+/// struct User { name: String }
+/// impl User { fn new(name: &str) -> Self { Self { name: name.to_string() } } }
 ///
 /// #[allure_step_fn]
 /// fn setup_user() -> User {
@@ -621,13 +619,11 @@ fn generate_param_captures(inputs: &Punctuated<FnArg, Token![,]>) -> proc_macro2
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use allure_macros::allure_suite;
 ///
 /// #[allure_suite("Authentication Tests")]
 /// mod auth_tests {
-///     use super::*;
-///
 ///     #[test]
 ///     fn test_login() { }
 /// }
@@ -731,7 +727,7 @@ pub fn allure_description(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use allure_macros::{allure_test, allure_description_html};
 ///
 /// #[allure_description_html("<h1>Test Header</h1><p>Test description</p>")]
@@ -749,7 +745,7 @@ pub fn allure_description_html(attr: TokenStream, item: TokenStream) -> TokenStr
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use allure_macros::{allure_test, allure_title};
 ///
 /// #[allure_title("User can login with valid credentials")]
@@ -765,7 +761,7 @@ pub fn allure_title(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use allure_macros::{allure_test, allure_epics};
 ///
 /// #[allure_epics("User Management", "Authentication")]
@@ -781,7 +777,7 @@ pub fn allure_epics(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use allure_macros::{allure_test, allure_features};
 ///
 /// #[allure_features("Login", "Registration")]
@@ -797,7 +793,7 @@ pub fn allure_features(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use allure_macros::{allure_test, allure_stories};
 ///
 /// #[allure_stories("User can login", "User can logout")]
@@ -813,7 +809,7 @@ pub fn allure_stories(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use allure_macros::{allure_test, allure_tags};
 ///
 /// #[allure_tags("smoke", "regression", "api")]
@@ -1077,11 +1073,18 @@ impl Parse for LinkArgs {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// allure_step!("Initialize system", {
-///     setup();
-///     configure();
-/// });
+/// ```no_run
+/// use allure_macros::allure_step;
+///
+/// fn setup() {}
+/// fn configure() {}
+///
+/// fn main() {
+///     allure_step!("Initialize system", {
+///         setup();
+///         configure();
+///     });
+/// }
 /// ```
 #[proc_macro]
 pub fn allure_step(input: TokenStream) -> TokenStream {

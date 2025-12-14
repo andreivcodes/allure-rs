@@ -1,4 +1,4 @@
-//! # Allure
+//! # Allure-RS
 //!
 //! A comprehensive Rust library for generating [Allure](https://allurereport.org/) test reports.
 //!
@@ -18,18 +18,19 @@
 //!
 //! ```toml
 //! [dev-dependencies]
-//! allure = "0.1"
+//! allure-rs = "0.1"
 //! ```
 //!
 //! ## Basic Usage
 //!
 //! ```ignore
-//! use allure::prelude::*;
+//! use allure_rs::prelude::*;
 //!
-//! #[allure_test]
+//! // Note: Metadata attributes must come BEFORE #[allure_test]
 //! #[allure_epic("User Management")]
 //! #[allure_feature("Authentication")]
 //! #[allure_severity("critical")]
+//! #[allure_test]
 //! fn test_login() {
 //!     step("Initialize user", || {
 //!         // setup code
@@ -47,20 +48,19 @@
 //! ## BDD Style
 //!
 //! ```ignore
-//! use allure::prelude::*;
-//! use allure::bdd::*;
+//! use allure_rs::prelude::*;
 //!
 //! #[allure_test]
 //! fn test_user_registration() {
-//!     given("a new user with valid email", || {
-//!         User::new("test@example.com")
+//!     bdd::given("a new user with valid email", || {
+//!         // setup
 //!     });
 //!
-//!     when("the user submits registration form", || {
-//!         // registration logic
+//!     bdd::when("the user submits registration form", || {
+//!         // action
 //!     });
 //!
-//!     then("the user account should be created", || {
+//!     bdd::then("the user account should be created", || {
 //!         assert!(true);
 //!     });
 //! }
@@ -69,7 +69,7 @@
 //! ## Configuration
 //!
 //! ```ignore
-//! use allure::configure;
+//! use allure_rs::configure;
 //!
 //! // Initialize before running tests (e.g., in a test setup or main)
 //! configure()
@@ -82,7 +82,7 @@
 //! ## Environment Info
 //!
 //! ```ignore
-//! use allure::environment;
+//! use allure_rs::environment;
 //!
 //! environment()
 //!     .set("rust_version", env!("CARGO_PKG_RUST_VERSION"))
@@ -95,7 +95,7 @@
 //! ## Categories
 //!
 //! ```ignore
-//! use allure::{categories, Category, Status};
+//! use allure_rs::{categories, Category, Status};
 //!
 //! categories()
 //!     .with_product_defects()
@@ -123,7 +123,7 @@ pub use allure_macros::{
 
 /// Prelude module for convenient imports.
 ///
-/// Use `use allure::prelude::*;` to import commonly used items.
+/// Use `use allure_rs::prelude::*;` to import commonly used items.
 pub mod prelude {
     // Proc macros
     pub use allure_macros::{
@@ -144,7 +144,7 @@ pub mod prelude {
         allure_id, attach_binary, attach_file, attach_json, attach_text, configure, description,
         description_html, display_name, epic, feature, flaky, issue, known_issue, label, link,
         log_step, owner, parameter, parent_suite, run_test, severity, step, story, sub_suite,
-        suite, tag, tags, test_case_id, title, tms,
+        suite, tag, tags, test_case_id, title, tms, with_test_context,
     };
 
     // Attachment module

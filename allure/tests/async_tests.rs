@@ -3,13 +3,13 @@
 //! These tests verify that Allure macros and runtime work correctly
 //! with async test frameworks like tokio.
 
-use allure::prelude::*;
+use allure_rs::prelude::*;
 use tempfile::TempDir;
 
 /// Helper to set up test results directory
 fn setup_results_dir() -> TempDir {
     let dir = tempfile::tempdir().unwrap();
-    let _ = allure::configure()
+    let _ = allure_rs::configure()
         .results_dir(dir.path().to_str().unwrap())
         .clean_results(true)
         .init();
@@ -160,7 +160,7 @@ async fn test_async_with_attachments() {
 #[allure_test]
 async fn test_async_bdd_style() {
     let _dir = setup_results_dir();
-    use allure::bdd::*;
+    use allure_rs::bdd::*;
 
     let user_id = given("a user exists", || "user123".to_string());
 

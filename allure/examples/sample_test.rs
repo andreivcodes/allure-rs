@@ -1,6 +1,6 @@
 //! Sample test to generate Allure results for validation.
 
-use allure::prelude::*;
+use allure_rs::prelude::*;
 use allure_core::runtime::{set_context, take_context, TestContext};
 use allure_core::writer::AllureWriter;
 
@@ -37,9 +37,9 @@ fn main() {
             feature("Registration");
             story("User can register with email");
 
-            allure::bdd::given("a new user with valid email", || {});
-            allure::bdd::when("the user submits registration form", || {});
-            allure::bdd::then("the user account should be created", || {});
+            allure_rs::bdd::given("a new user with valid email", || {});
+            allure_rs::bdd::when("the user submits registration form", || {});
+            allure_rs::bdd::then("the user account should be created", || {});
         },
     );
 
@@ -125,7 +125,7 @@ fn main() {
     );
 
     // Write environment info
-    allure::environment()
+    allure_rs::environment()
         .results_dir(results_dir)
         .set("rust_version", "1.75.0")
         .set("os", std::env::consts::OS)
@@ -134,7 +134,7 @@ fn main() {
         .unwrap();
 
     // Write categories
-    allure::categories()
+    allure_rs::categories()
         .results_dir(results_dir)
         .with_product_defects()
         .with_test_defects()

@@ -2,8 +2,8 @@
 //!
 //! These tests validate that the library produces correct Allure output files.
 
-use allure::prelude::*;
-use allure::{bdd, Category};
+use allure_rs::prelude::*;
+use allure_rs::{bdd, Category};
 use allure_core::enums::ContentType;
 use allure_core::model::{FixtureResult, TestResultContainer};
 use allure_core::runtime::{self, set_context, take_context, TestContext};
@@ -940,7 +940,7 @@ fn test_after_fixture_in_container() {
 
 #[cfg(test)]
 mod macro_compile_tests {
-    use allure::prelude::*;
+    use allure_rs::prelude::*;
 
     // This module exists primarily to verify that macros compile correctly.
     // The #[ignore] tests are meant to be run manually or to validate compilation.

@@ -4,14 +4,14 @@
 //! - rstest for parameterized tests and fixtures
 //! - test-case for parameterized tests
 
-use allure::prelude::*;
+use allure_rs::prelude::*;
 use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
 /// Helper to set up test results directory
 fn setup_results_dir() -> TempDir {
     let dir = tempfile::tempdir().unwrap();
-    let _ = allure::configure()
+    let _ = allure_rs::configure()
         .results_dir(dir.path().to_str().unwrap())
         .clean_results(true)
         .init();
