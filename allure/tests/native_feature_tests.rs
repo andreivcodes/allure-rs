@@ -5,8 +5,8 @@
 //! - #[ignore]
 //! - Result<T, E> return types
 
-use allure_rs::prelude::configure;
 use allure_macros::allure_test;
+use allure_rs::prelude::configure;
 
 // Initialize Allure once before tests run
 // Note: Tests run from the crate directory (allure/), so use parent path

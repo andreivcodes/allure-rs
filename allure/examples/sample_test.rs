@@ -1,8 +1,8 @@
 //! Sample test to generate Allure results for validation.
 
-use allure_rs::prelude::*;
 use allure_core::runtime::{set_context, take_context, TestContext};
 use allure_core::writer::AllureWriter;
+use allure_rs::prelude::*;
 
 fn main() {
     // Set up the results directory

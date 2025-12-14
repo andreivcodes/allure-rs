@@ -2,12 +2,12 @@
 //!
 //! These tests validate that the library produces correct Allure output files.
 
-use allure_rs::prelude::*;
-use allure_rs::{bdd, Category};
 use allure_core::enums::ContentType;
 use allure_core::model::{FixtureResult, TestResultContainer};
 use allure_core::runtime::{self, set_context, take_context, TestContext};
 use allure_core::writer::AllureWriter;
+use allure_rs::prelude::*;
+use allure_rs::{bdd, Category};
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
