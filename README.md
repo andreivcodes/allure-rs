@@ -216,4 +216,4 @@ allure-rs = { version = "0.1", features = ["async"] }
 
 ## License
 
-MIT OR Apache-2.0
+MIT
