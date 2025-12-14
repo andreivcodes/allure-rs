@@ -1,0 +1,27 @@
+[package]
+name = "allure-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Core types and runtime for Allure test reporting"
+keywords = ["allure", "testing", "report"]
+categories = ["development-tools::testing"]
+readme = "../README.md"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+md-5.workspace = true
+hostname = "0.4"
+thiserror.workspace = true
+tokio = { workspace = true, optional = true }
+futures = { version = "0.3", default-features = false, optional = true }
+
+[features]
+default = []
+tokio = ["dep:tokio"]
+async = ["dep:futures"]

@@ -1,0 +1,33 @@
+[package]
+name = "allure"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "A comprehensive Rust library for generating Allure test reports"
+keywords = ["allure", "testing", "report", "test-framework"]
+categories = ["development-tools::testing"]
+readme = "../README.md"
+exclude = ["allure-results/", "allure-report/"]
+
+[dependencies]
+allure-core = { version = "0.1.0", path = "../allure-core" }
+allure-macros = { version = "0.1.0", path = "../allure-macros" }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+rstest = { workspace = true }
+test-case = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+futures = "0.3"
+ctor = "0.2"
+
+[features]
+default = []
+tokio = ["allure-core/tokio"]
+async = ["allure-core/async"]

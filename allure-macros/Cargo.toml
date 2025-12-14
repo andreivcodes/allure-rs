@@ -1,0 +1,24 @@
+[package]
+name = "allure-macros"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Procedural macros for Allure test reporting"
+keywords = ["allure", "testing", "macros", "proc-macro"]
+categories = ["development-tools::testing", "development-tools::procedural-macro-helpers"]
+readme = "../README.md"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true
+
+[dev-dependencies]
+trybuild = "1.0"
+allure-core = { version = "0.1.0", path = "../allure-core" }
