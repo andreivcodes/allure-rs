@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, beta, "1.70"]
+        rust: [stable, beta, "1.75"]
     steps:
       - uses: actions/checkout@v4
 
@@ -113,7 +113,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.70"
+          toolchain: "1.75"
 
       - name: Check MSRV
         run: cargo check --all-features
