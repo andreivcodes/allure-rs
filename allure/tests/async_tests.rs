@@ -52,10 +52,7 @@ async fn test_multiple_async_operations() {
         // Setup
     });
 
-    let (result1, result2) = tokio::join!(
-        async { 1 + 1 },
-        async { 2 + 2 }
-    );
+    let (result1, result2) = tokio::join!(async { 1 + 1 }, async { 2 + 2 });
 
     step("Verify results", || {
         assert_eq!(result1, 2);
@@ -165,9 +162,7 @@ async fn test_async_bdd_style() {
     let _dir = setup_results_dir();
     use allure::bdd::*;
 
-    let user_id = given("a user exists", || {
-        "user123".to_string()
-    });
+    let user_id = given("a user exists", || "user123".to_string());
 
     // Async operation
     let fetch_result = async {

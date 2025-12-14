@@ -100,7 +100,7 @@
 //! categories()
 //!     .with_product_defects()
 //!     .with_test_defects()
-//!     .add(
+//!     .with_category(
 //!         Category::new("Infrastructure Issues")
 //!             .with_status(Status::Broken)
 //!             .with_message_regex(".*timeout.*")
@@ -117,8 +117,8 @@ pub use allure_macros::{
     allure_description, allure_description_html, allure_epic, allure_epics, allure_feature,
     allure_features, allure_flaky, allure_id, allure_issue, allure_link, allure_manual,
     allure_owner, allure_parent_suite, allure_severity, allure_step, allure_step_fn,
-    allure_stories, allure_story, allure_sub_suite, allure_suite, allure_suite_label,
-    allure_tag, allure_tags, allure_test, allure_title, allure_tms,
+    allure_stories, allure_story, allure_sub_suite, allure_suite, allure_suite_label, allure_tag,
+    allure_tags, allure_test, allure_title, allure_tms,
 };
 
 /// Prelude module for convenient imports.
@@ -141,10 +141,10 @@ pub mod prelude {
 
     // Runtime functions
     pub use allure_core::{
-        allure_id, attach_binary, attach_file, attach_json, attach_text, configure,
-        description, description_html, display_name, epic, feature, flaky, issue, known_issue,
-        label, link, log_step, owner, parameter, parent_suite, run_test, severity, step, story,
-        sub_suite, suite, tag, tags, test_case_id, title, tms,
+        allure_id, attach_binary, attach_file, attach_json, attach_text, configure, description,
+        description_html, display_name, epic, feature, flaky, issue, known_issue, label, link,
+        log_step, owner, parameter, parent_suite, run_test, severity, step, story, sub_suite,
+        suite, tag, tags, test_case_id, title, tms,
     };
 
     // Attachment module

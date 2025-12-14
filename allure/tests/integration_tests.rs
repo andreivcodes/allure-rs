@@ -420,9 +420,7 @@ fn test_generic_link_in_output() {
 
     let results = helper.read_result_files();
     let links = results[0]["links"].as_array().unwrap();
-    assert!(links
-        .iter()
-        .any(|l| l["url"] == "https://example.com/docs"));
+    assert!(links.iter().any(|l| l["url"] == "https://example.com/docs"));
 }
 
 #[test]
@@ -640,10 +638,8 @@ fn test_attachment_reference_in_result() {
     let helper = TestHelper::new();
 
     // Create a test result with an attachment reference
-    let mut result = allure_core::model::TestResult::new(
-        "test-uuid".to_string(),
-        "my_test".to_string(),
-    );
+    let mut result =
+        allure_core::model::TestResult::new("test-uuid".to_string(), "my_test".to_string());
 
     // Write attachment and add reference to result
     let attachment = helper
@@ -1047,10 +1043,14 @@ fn test_empty_step_name() {
 #[test]
 fn test_unicode_in_names() {
     let helper = TestHelper::new();
-    helper.run_test("tест_с_юникодом", "модуль::тест", || {
-        step("Шаг с юникодом 日本語", || {});
-        runtime::epic("Эпик");
-    });
+    helper.run_test(
+        "tест_с_юникодом",
+        "модуль::тест",
+        || {
+            step("Шаг с юникодом 日本語", || {});
+            runtime::epic("Эпик");
+        },
+    );
 
     let results = helper.read_result_files();
     assert_eq!(results[0]["name"], "tест_с_юникодом");

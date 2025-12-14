@@ -4,8 +4,8 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use crate::model::{Attachment, Category, TestResult, TestResultContainer};
 use crate::enums::ContentType;
+use crate::model::{Attachment, Category, TestResult, TestResultContainer};
 
 /// Default directory for Allure results.
 pub const DEFAULT_RESULTS_DIR: &str = "allure-results";
@@ -84,7 +84,11 @@ impl AllureWriter {
         let filename = format!("{}-attachment.txt", uuid);
         let path = self.results_dir.join(&filename);
         fs::write(&path, content.as_ref())?;
-        Ok(Attachment::new(name, filename, Some(ContentType::Text.as_mime().to_string())))
+        Ok(Attachment::new(
+            name,
+            filename,
+            Some(ContentType::Text.as_mime().to_string()),
+        ))
     }
 
     /// Writes a JSON attachment and returns the Attachment reference.
@@ -100,7 +104,11 @@ impl AllureWriter {
         let json = serde_json::to_string_pretty(value)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         fs::write(&path, json)?;
-        Ok(Attachment::new(name, filename, Some(ContentType::Json.as_mime().to_string())))
+        Ok(Attachment::new(
+            name,
+            filename,
+            Some(ContentType::Json.as_mime().to_string()),
+        ))
     }
 
     /// Writes a binary attachment and returns the Attachment reference.
@@ -115,7 +123,11 @@ impl AllureWriter {
         let filename = format!("{}-attachment.{}", uuid, content_type.extension());
         let path = self.results_dir.join(&filename);
         fs::write(&path, content)?;
-        Ok(Attachment::new(name, filename, Some(content_type.as_mime().to_string())))
+        Ok(Attachment::new(
+            name,
+            filename,
+            Some(content_type.as_mime().to_string()),
+        ))
     }
 
     /// Writes a binary attachment with a custom MIME type.
@@ -301,7 +313,9 @@ mod tests {
         let writer = AllureWriter::with_results_dir(&dir);
         writer.init(true).unwrap();
 
-        let attachment = writer.write_text_attachment("Log", "Test log content").unwrap();
+        let attachment = writer
+            .write_text_attachment("Log", "Test log content")
+            .unwrap();
         assert_eq!(attachment.name, "Log");
         assert!(attachment.source.ends_with(".txt"));
         assert_eq!(attachment.r#type, Some("text/plain".to_string()));
@@ -348,7 +362,9 @@ mod tests {
         writer.init(true).unwrap();
 
         let png_data = vec![0x89, 0x50, 0x4E, 0x47]; // PNG magic bytes
-        let attachment = writer.write_binary_attachment("Screenshot", &png_data, ContentType::Png).unwrap();
+        let attachment = writer
+            .write_binary_attachment("Screenshot", &png_data, ContentType::Png)
+            .unwrap();
         assert!(attachment.source.ends_with(".png"));
         assert_eq!(attachment.r#type, Some("image/png".to_string()));
 
@@ -386,8 +402,7 @@ mod tests {
             Category::new("Infrastructure Issues")
                 .with_status(Status::Broken)
                 .with_message_regex(".*timeout.*"),
-            Category::new("Product Defects")
-                .with_status(Status::Failed),
+            Category::new("Product Defects").with_status(Status::Failed),
         ];
 
         let path = writer.write_categories(&categories).unwrap();
@@ -403,10 +418,7 @@ mod tests {
 
     #[test]
     fn test_compute_history_id() {
-        let params = vec![
-            Parameter::new("a", "1"),
-            Parameter::new("b", "2"),
-        ];
+        let params = vec![Parameter::new("a", "1"), Parameter::new("b", "2")];
 
         let id1 = compute_history_id("test::my_test", &params);
         let id2 = compute_history_id("test::my_test", &params);

@@ -231,26 +231,22 @@ impl CategoriesBuilder {
     }
 
     /// Adds a category.
-    pub fn add(mut self, category: Category) -> Self {
+    pub fn with_category(mut self, category: Category) -> Self {
         self.categories.push(category);
         self
     }
 
     /// Adds the default product defects category.
     pub fn with_product_defects(mut self) -> Self {
-        self.categories.push(
-            Category::new("Product defects")
-                .with_status(Status::Failed)
-        );
+        self.categories
+            .push(Category::new("Product defects").with_status(Status::Failed));
         self
     }
 
     /// Adds the default test defects category.
     pub fn with_test_defects(mut self) -> Self {
-        self.categories.push(
-            Category::new("Test defects")
-                .with_status(Status::Broken)
-        );
+        self.categories
+            .push(Category::new("Test defects").with_status(Status::Broken));
         self
     }
 
@@ -291,9 +287,7 @@ mod tests {
 
     #[test]
     fn test_environment_builder() {
-        let builder = environment()
-            .set("key1", "value1")
-            .set("key2", "value2");
+        let builder = environment().set("key1", "value1").set("key2", "value2");
 
         assert_eq!(builder.properties.len(), 2);
     }
@@ -303,7 +297,7 @@ mod tests {
         let builder = categories()
             .with_product_defects()
             .with_test_defects()
-            .add(Category::new("Custom").with_status(Status::Skipped));
+            .with_category(Category::new("Custom").with_status(Status::Skipped));
 
         assert_eq!(builder.categories.len(), 3);
     }

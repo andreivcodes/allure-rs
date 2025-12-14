@@ -560,7 +560,11 @@ pub struct Attachment {
 
 impl Attachment {
     /// Creates a new attachment.
-    pub fn new(name: impl Into<String>, source: impl Into<String>, mime_type: Option<String>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        source: impl Into<String>,
+        mime_type: Option<String>,
+    ) -> Self {
         Self {
             name: name.into(),
             source: source.into(),

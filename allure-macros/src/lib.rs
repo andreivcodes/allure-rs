@@ -77,7 +77,6 @@ fn is_result_return(output: &ReturnType) -> bool {
     }
 }
 
-
 /// Attribute macro that wraps a test function with Allure tracking.
 ///
 /// # Examples
@@ -144,7 +143,11 @@ fn expand_allure_test(
     // Check if there's already a #[test] attribute
     let has_test_attr = attrs.iter().any(|attr| {
         attr.path().is_ident("test")
-            || attr.path().segments.last().map_or(false, |seg| seg.ident == "test")
+            || attr
+                .path()
+                .segments
+                .last()
+                .is_some_and(|seg| seg.ident == "test")
     });
 
     let test_attr = if has_test_attr {
@@ -453,17 +456,26 @@ fn generate_metadata_setup(metadata: &TestMetadata) -> proc_macro2::TokenStream 
     }
 
     for (url, name) in &metadata.issues {
-        let name_opt = name.as_ref().map(|n| quote! { Some(#n.to_string()) }).unwrap_or(quote! { None });
+        let name_opt = name
+            .as_ref()
+            .map(|n| quote! { Some(#n.to_string()) })
+            .unwrap_or(quote! { None });
         setup = quote! { #setup ::allure_core::runtime::issue(#url, #name_opt); };
     }
 
     for (url, name) in &metadata.tms_links {
-        let name_opt = name.as_ref().map(|n| quote! { Some(#n.to_string()) }).unwrap_or(quote! { None });
+        let name_opt = name
+            .as_ref()
+            .map(|n| quote! { Some(#n.to_string()) })
+            .unwrap_or(quote! { None });
         setup = quote! { #setup ::allure_core::runtime::tms(#url, #name_opt); };
     }
 
     for (url, name) in &metadata.links {
-        let name_opt = name.as_ref().map(|n| quote! { Some(#n.to_string()) }).unwrap_or(quote! { None });
+        let name_opt = name
+            .as_ref()
+            .map(|n| quote! { Some(#n.to_string()) })
+            .unwrap_or(quote! { None });
         setup = quote! { #setup ::allure_core::runtime::link(#url, #name_opt); };
     }
 
@@ -505,7 +517,10 @@ pub fn allure_step_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
         .into()
 }
 
-fn expand_step(input: ItemFn, custom_name: Option<String>) -> syn::Result<proc_macro2::TokenStream> {
+fn expand_step(
+    input: ItemFn,
+    custom_name: Option<String>,
+) -> syn::Result<proc_macro2::TokenStream> {
     let fn_name = &input.sig.ident;
     let fn_name_str = fn_name.to_string();
     let step_name = custom_name.unwrap_or_else(|| fn_name_str.clone());
@@ -622,9 +637,11 @@ pub fn allure_suite(attr: TokenStream, item: TokenStream) -> TokenStream {
     let suite_name = parse_macro_input!(attr as Lit);
     let suite_name_str = match suite_name {
         Lit::Str(s) => s.value(),
-        _ => return syn::Error::new(suite_name.span(), "Expected string literal")
-            .to_compile_error()
-            .into(),
+        _ => {
+            return syn::Error::new(suite_name.span(), "Expected string literal")
+                .to_compile_error()
+                .into()
+        }
     };
 
     let input = parse_macro_input!(item as ItemMod);
@@ -743,7 +760,6 @@ pub fn allure_description_html(attr: TokenStream, item: TokenStream) -> TokenStr
 pub fn allure_title(attr: TokenStream, item: TokenStream) -> TokenStream {
     metadata_attr("title", attr, item)
 }
-
 
 /// Marks a test as a manual test (not automated).
 ///
@@ -922,7 +938,6 @@ pub fn allure_flaky(_attr: TokenStream, item: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-
 /// Adds an issue link to a test.
 #[proc_macro_attribute]
 pub fn allure_issue(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -948,9 +963,11 @@ fn metadata_attr(meta_type: &str, attr: TokenStream, item: TokenStream) -> Token
 
     let value_str = match value {
         Lit::Str(s) => s.value(),
-        _ => return syn::Error::new(value.span(), "Expected string literal")
-            .to_compile_error()
-            .into(),
+        _ => {
+            return syn::Error::new(value.span(), "Expected string literal")
+                .to_compile_error()
+                .into()
+        }
     };
 
     let visibility = &input.vis;
@@ -976,7 +993,7 @@ fn metadata_attr(meta_type: &str, attr: TokenStream, item: TokenStream) -> Token
                 _ => quote! { ::allure_core::Severity::Normal },
             };
             quote! { ::allure_core::runtime::severity(#severity); }
-        },
+        }
         "owner" => quote! { ::allure_core::runtime::owner(#value_str); },
         "tag" => quote! { ::allure_core::runtime::tag(#value_str); },
         "id" => quote! { ::allure_core::runtime::allure_id(#value_str); },
@@ -1005,9 +1022,11 @@ fn link_attr(link_type: &str, attr: TokenStream, item: TokenStream) -> TokenStre
     let (url, name) = if let Ok(lit) = syn::parse::<Lit>(attr.clone()) {
         match lit {
             Lit::Str(s) => (s.value(), None),
-            _ => return syn::Error::new(lit.span(), "Expected string literal")
-                .to_compile_error()
-                .into(),
+            _ => {
+                return syn::Error::new(lit.span(), "Expected string literal")
+                    .to_compile_error()
+                    .into()
+            }
         }
     } else {
         // Try parsing as tuple: ("url", "name")
@@ -1023,7 +1042,9 @@ fn link_attr(link_type: &str, attr: TokenStream, item: TokenStream) -> TokenStre
     let block = &input.block;
     let sig = &input.sig;
 
-    let name_opt = name.map(|n| quote! { Some(#n.to_string()) }).unwrap_or(quote! { None });
+    let name_opt = name
+        .map(|n| quote! { Some(#n.to_string()) })
+        .unwrap_or(quote! { None });
 
     let runtime_call = match link_type {
         "issue" => quote! { ::allure_core::runtime::issue(#url, #name_opt); },
@@ -1054,7 +1075,12 @@ impl Parse for LinkArgs {
         let url: Lit = input.parse()?;
         let url_str = match url {
             Lit::Str(s) => s.value(),
-            _ => return Err(syn::Error::new(url.span(), "Expected string literal for URL")),
+            _ => {
+                return Err(syn::Error::new(
+                    url.span(),
+                    "Expected string literal for URL",
+                ))
+            }
         };
 
         let name = if input.peek(Token![,]) {
@@ -1062,7 +1088,12 @@ impl Parse for LinkArgs {
             let name_lit: Lit = input.parse()?;
             match name_lit {
                 Lit::Str(s) => Some(s.value()),
-                _ => return Err(syn::Error::new(name_lit.span(), "Expected string literal for name")),
+                _ => {
+                    return Err(syn::Error::new(
+                        name_lit.span(),
+                        "Expected string literal for name",
+                    ))
+                }
             }
         } else {
             None

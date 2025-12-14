@@ -333,17 +333,38 @@ mod tests {
 
     #[test]
     fn test_status_serialization() {
-        assert_eq!(serde_json::to_string(&Status::Passed).unwrap(), "\"passed\"");
-        assert_eq!(serde_json::to_string(&Status::Failed).unwrap(), "\"failed\"");
-        assert_eq!(serde_json::to_string(&Status::Broken).unwrap(), "\"broken\"");
-        assert_eq!(serde_json::to_string(&Status::Skipped).unwrap(), "\"skipped\"");
-        assert_eq!(serde_json::to_string(&Status::Unknown).unwrap(), "\"unknown\"");
+        assert_eq!(
+            serde_json::to_string(&Status::Passed).unwrap(),
+            "\"passed\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Status::Failed).unwrap(),
+            "\"failed\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Status::Broken).unwrap(),
+            "\"broken\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Status::Skipped).unwrap(),
+            "\"skipped\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Status::Unknown).unwrap(),
+            "\"unknown\""
+        );
     }
 
     #[test]
     fn test_stage_serialization() {
-        assert_eq!(serde_json::to_string(&Stage::Finished).unwrap(), "\"finished\"");
-        assert_eq!(serde_json::to_string(&Stage::Running).unwrap(), "\"running\"");
+        assert_eq!(
+            serde_json::to_string(&Stage::Finished).unwrap(),
+            "\"finished\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Stage::Running).unwrap(),
+            "\"running\""
+        );
     }
 
     #[test]

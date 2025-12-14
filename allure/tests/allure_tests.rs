@@ -13,7 +13,9 @@ use allure_macros::{
 };
 
 // Runtime functions from prelude
-use allure::prelude::{bdd, configure, description, display_name, flaky, parameter, step, test_case_id};
+use allure::prelude::{
+    bdd, configure, description, display_name, flaky, parameter, step, test_case_id,
+};
 
 // Initialize Allure once before tests run
 // Note: Tests run from the crate directory (allure/), so use parent path

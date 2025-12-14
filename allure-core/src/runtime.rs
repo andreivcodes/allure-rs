@@ -236,7 +236,10 @@ impl TestContext {
         content: &[u8],
         content_type: ContentType,
     ) {
-        match self.writer.write_binary_attachment(name, content, content_type) {
+        match self
+            .writer
+            .write_binary_attachment(name, content, content_type)
+        {
             Ok(attachment) => self.add_attachment(attachment),
             Err(e) => eprintln!("Failed to write binary attachment: {}", e),
         }
@@ -674,7 +677,10 @@ pub fn attach_binary(name: impl Into<String>, content: &[u8], content_type: Cont
 /// ```
 pub fn flaky() {
     with_context(|ctx| {
-        let details = ctx.result.status_details.get_or_insert_with(Default::default);
+        let details = ctx
+            .result
+            .status_details
+            .get_or_insert_with(Default::default);
         details.flaky = Some(true);
     });
 }
@@ -695,7 +701,10 @@ pub fn flaky() {
 /// ```
 pub fn muted() {
     with_context(|ctx| {
-        let details = ctx.result.status_details.get_or_insert_with(Default::default);
+        let details = ctx
+            .result
+            .status_details
+            .get_or_insert_with(Default::default);
         details.muted = Some(true);
     });
 }
@@ -714,7 +723,10 @@ pub fn muted() {
 pub fn known_issue(issue_id: impl Into<String>) {
     let id = issue_id.into();
     with_context(|ctx| {
-        let details = ctx.result.status_details.get_or_insert_with(Default::default);
+        let details = ctx
+            .result
+            .status_details
+            .get_or_insert_with(Default::default);
         details.known = Some(true);
         // Also add as an issue link
         ctx.add_link(&id, Some(id.clone()), LinkType::Issue);
@@ -766,7 +778,11 @@ mod tests {
         let ctx = TestContext::new("My Test", "tests::my_test");
         assert_eq!(ctx.result.name, "My Test");
         assert_eq!(ctx.result.full_name, Some("tests::my_test".to_string()));
-        assert!(ctx.result.labels.iter().any(|l| l.name == "language" && l.value == "rust"));
+        assert!(ctx
+            .result
+            .labels
+            .iter()
+            .any(|l| l.name == "language" && l.value == "rust"));
     }
 
     #[test]
@@ -794,6 +810,10 @@ mod tests {
         });
 
         let ctx = take_context().unwrap();
-        assert!(ctx.result.labels.iter().any(|l| l.name == "custom" && l.value == "value"));
+        assert!(ctx
+            .result
+            .labels
+            .iter()
+            .any(|l| l.name == "custom" && l.value == "value"));
     }
 }
