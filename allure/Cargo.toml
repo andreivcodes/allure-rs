@@ -14,8 +14,8 @@ readme = "../README.md"
 exclude = ["allure-results/", "allure-report/"]
 
 [dependencies]
-allure-core = { version = "0.1.0", path = "../allure-core" }
-allure-macros = { version = "0.1.0", path = "../allure-macros" }
+allure-core = { version = "0.1.1", path = "../allure-core" }
+allure-macros = { version = "0.1.1", path = "../allure-macros" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
