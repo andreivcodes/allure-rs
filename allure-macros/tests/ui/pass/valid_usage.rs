@@ -1,4 +1,6 @@
-use allure_macros::{
+// Import from allure_rs instead of allure_macros directly.
+// The macros generate code that references allure_rs::__private.
+use allure_rs::{
     allure_test, allure_epic, allure_story, allure_severity, allure_owner, allure_tag, allure_id,
     allure_description, allure_flaky, allure_issue, allure_tms, allure_link, allure_step_fn,
 };

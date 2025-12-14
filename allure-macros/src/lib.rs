@@ -162,9 +162,9 @@ fn expand_allure_test(
             #(#attrs)*
             #test_attr
             #visibility #sig {
-                use ::allure_core::runtime::{set_context, take_context, TestContext};
-                use ::allure_core::enums::Status;
-                use ::allure_core::futures::FutureExt;
+                use ::allure_rs::__private::runtime::{set_context, take_context, TestContext};
+                use ::allure_rs::__private::enums::Status;
+                use ::allure_rs::__private::futures::FutureExt;
 
                 // Build full name at runtime using module_path!()
                 let full_name = concat!(module_path!(), "::", #fn_name_str);
@@ -227,8 +227,8 @@ fn expand_allure_test(
             #(#attrs)*
             #test_attr
             #visibility fn #fn_name #generics () #output {
-                use ::allure_core::runtime::{set_context, take_context, TestContext};
-                use ::allure_core::enums::Status;
+                use ::allure_rs::__private::runtime::{set_context, take_context, TestContext};
+                use ::allure_rs::__private::enums::Status;
 
                 // Build full name at runtime using module_path!()
                 let full_name = concat!(module_path!(), "::", #fn_name_str);
@@ -283,8 +283,8 @@ fn expand_allure_test(
             #(#attrs)*
             #test_attr
             #visibility fn #fn_name #generics () #output {
-                use ::allure_core::runtime::{set_context, take_context, TestContext};
-                use ::allure_core::enums::Status;
+                use ::allure_rs::__private::runtime::{set_context, take_context, TestContext};
+                use ::allure_rs::__private::enums::Status;
 
                 // Build full name at runtime using module_path!()
                 let full_name = concat!(module_path!(), "::", #fn_name_str);
@@ -335,8 +335,8 @@ fn expand_allure_test(
             #(#attrs)*
             #test_attr
             #visibility fn #fn_name #generics () #output {
-                use ::allure_core::runtime::{set_context, take_context, TestContext};
-                use ::allure_core::enums::Status;
+                use ::allure_rs::__private::runtime::{set_context, take_context, TestContext};
+                use ::allure_rs::__private::enums::Status;
 
                 // Build full name at runtime using module_path!()
                 let full_name = concat!(module_path!(), "::", #fn_name_str);
@@ -413,41 +413,41 @@ fn generate_metadata_setup(metadata: &TestMetadata) -> proc_macro2::TokenStream 
     let mut setup = quote! {};
 
     if let Some(ref epic) = metadata.epic {
-        setup = quote! { #setup ::allure_core::runtime::epic(#epic); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::epic(#epic); };
     }
     if let Some(ref feature) = metadata.feature {
-        setup = quote! { #setup ::allure_core::runtime::feature(#feature); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::feature(#feature); };
     }
     if let Some(ref story) = metadata.story {
-        setup = quote! { #setup ::allure_core::runtime::story(#story); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::story(#story); };
     }
     if let Some(ref suite) = metadata.suite {
-        setup = quote! { #setup ::allure_core::runtime::suite(#suite); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::suite(#suite); };
     }
     if let Some(ref parent_suite) = metadata.parent_suite {
-        setup = quote! { #setup ::allure_core::runtime::parent_suite(#parent_suite); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::parent_suite(#parent_suite); };
     }
     if let Some(ref sub_suite) = metadata.sub_suite {
-        setup = quote! { #setup ::allure_core::runtime::sub_suite(#sub_suite); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::sub_suite(#sub_suite); };
     }
     if let Some(ref owner) = metadata.owner {
-        setup = quote! { #setup ::allure_core::runtime::owner(#owner); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::owner(#owner); };
     }
     if let Some(ref id) = metadata.id {
-        setup = quote! { #setup ::allure_core::runtime::allure_id(#id); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::allure_id(#id); };
     }
     if let Some(ref desc) = metadata.description {
-        setup = quote! { #setup ::allure_core::runtime::description(#desc); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::description(#desc); };
     }
     if metadata.flaky {
-        setup = quote! { #setup ::allure_core::runtime::flaky(); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::flaky(); };
     }
     if metadata.muted {
-        setup = quote! { #setup ::allure_core::runtime::muted(); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::muted(); };
     }
 
     for tag in &metadata.tags {
-        setup = quote! { #setup ::allure_core::runtime::tag(#tag); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::tag(#tag); };
     }
 
     for (url, name) in &metadata.issues {
@@ -455,7 +455,7 @@ fn generate_metadata_setup(metadata: &TestMetadata) -> proc_macro2::TokenStream 
             .as_ref()
             .map(|n| quote! { Some(#n.to_string()) })
             .unwrap_or(quote! { None });
-        setup = quote! { #setup ::allure_core::runtime::issue(#url, #name_opt); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::issue(#url, #name_opt); };
     }
 
     for (url, name) in &metadata.tms_links {
@@ -463,7 +463,7 @@ fn generate_metadata_setup(metadata: &TestMetadata) -> proc_macro2::TokenStream 
             .as_ref()
             .map(|n| quote! { Some(#n.to_string()) })
             .unwrap_or(quote! { None });
-        setup = quote! { #setup ::allure_core::runtime::tms(#url, #name_opt); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::tms(#url, #name_opt); };
     }
 
     for (url, name) in &metadata.links {
@@ -471,7 +471,7 @@ fn generate_metadata_setup(metadata: &TestMetadata) -> proc_macro2::TokenStream 
             .as_ref()
             .map(|n| quote! { Some(#n.to_string()) })
             .unwrap_or(quote! { None });
-        setup = quote! { #setup ::allure_core::runtime::link(#url, #name_opt); };
+        setup = quote! { #setup ::allure_rs::__private::runtime::link(#url, #name_opt); };
     }
 
     setup
@@ -552,10 +552,10 @@ fn expand_step(
         Ok(quote! {
             #(#attrs)*
             #visibility async fn #fn_name #generics (#inputs) #output #where_clause {
-                use ::allure_core::futures::FutureExt;
+                use ::allure_rs::__private::futures::FutureExt;
 
                 let step_name = #step_name_with_params;
-                ::allure_core::runtime::with_context(|ctx| ctx.start_step(&step_name));
+                ::allure_rs::__private::runtime::with_context(|ctx| ctx.start_step(&step_name));
 
                 // Run the async body with panic catching
                 let step_body = async #block;
@@ -563,8 +563,8 @@ fn expand_step(
 
                 match panic_result {
                     Ok(result) => {
-                        ::allure_core::runtime::with_context(|ctx| {
-                            ctx.finish_step(::allure_core::enums::Status::Passed, None, None)
+                        ::allure_rs::__private::runtime::with_context(|ctx| {
+                            ctx.finish_step(::allure_rs::__private::enums::Status::Passed, None, None)
                         });
                         result
                     }
@@ -576,8 +576,8 @@ fn expand_step(
                         } else {
                             Some("Step panicked".to_string())
                         };
-                        ::allure_core::runtime::with_context(|ctx| {
-                            ctx.finish_step(::allure_core::enums::Status::Failed, panic_msg, None)
+                        ::allure_rs::__private::runtime::with_context(|ctx| {
+                            ctx.finish_step(::allure_rs::__private::enums::Status::Failed, panic_msg, None)
                         });
                         std::panic::resume_unwind(panic);
                     }
@@ -589,7 +589,7 @@ fn expand_step(
             #(#attrs)*
             #visibility fn #fn_name #generics (#inputs) #output #where_clause {
                 let step_name = #step_name_with_params;
-                ::allure_core::runtime::step(step_name, || #block)
+                ::allure_rs::__private::runtime::step(step_name, || #block)
             }
         })
     }
@@ -837,10 +837,10 @@ fn plural_metadata_attr(meta_type: &str, attr: TokenStream, item: TokenStream) -
     let mut runtime_calls = quote! {};
     for value in &values.values {
         let call = match meta_type {
-            "epic" => quote! { ::allure_core::runtime::epic(#value); },
-            "feature" => quote! { ::allure_core::runtime::feature(#value); },
-            "story" => quote! { ::allure_core::runtime::story(#value); },
-            "tag" => quote! { ::allure_core::runtime::tag(#value); },
+            "epic" => quote! { ::allure_rs::__private::runtime::epic(#value); },
+            "feature" => quote! { ::allure_rs::__private::runtime::feature(#value); },
+            "story" => quote! { ::allure_rs::__private::runtime::story(#value); },
+            "tag" => quote! { ::allure_rs::__private::runtime::tag(#value); },
             _ => quote! {},
         };
         runtime_calls = quote! { #runtime_calls #call };
@@ -896,7 +896,7 @@ pub fn allure_flaky(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #(#attrs)*
         #visibility #sig {
-            ::allure_core::runtime::flaky();
+            ::allure_rs::__private::runtime::flaky();
             #block
         }
     };
@@ -942,30 +942,30 @@ fn metadata_attr(meta_type: &str, attr: TokenStream, item: TokenStream) -> Token
     let sig = &input.sig;
 
     let runtime_call = match meta_type {
-        "epic" => quote! { ::allure_core::runtime::epic(#value_str); },
-        "feature" => quote! { ::allure_core::runtime::feature(#value_str); },
-        "story" => quote! { ::allure_core::runtime::story(#value_str); },
-        "suite" => quote! { ::allure_core::runtime::suite(#value_str); },
-        "parent_suite" => quote! { ::allure_core::runtime::parent_suite(#value_str); },
-        "sub_suite" => quote! { ::allure_core::runtime::sub_suite(#value_str); },
+        "epic" => quote! { ::allure_rs::__private::runtime::epic(#value_str); },
+        "feature" => quote! { ::allure_rs::__private::runtime::feature(#value_str); },
+        "story" => quote! { ::allure_rs::__private::runtime::story(#value_str); },
+        "suite" => quote! { ::allure_rs::__private::runtime::suite(#value_str); },
+        "parent_suite" => quote! { ::allure_rs::__private::runtime::parent_suite(#value_str); },
+        "sub_suite" => quote! { ::allure_rs::__private::runtime::sub_suite(#value_str); },
         "severity" => {
             // Parse severity string to enum variant
             let severity = match value_str.to_lowercase().as_str() {
-                "blocker" => quote! { ::allure_core::Severity::Blocker },
-                "critical" => quote! { ::allure_core::Severity::Critical },
-                "normal" => quote! { ::allure_core::Severity::Normal },
-                "minor" => quote! { ::allure_core::Severity::Minor },
-                "trivial" => quote! { ::allure_core::Severity::Trivial },
-                _ => quote! { ::allure_core::Severity::Normal },
+                "blocker" => quote! { ::allure_rs::__private::Severity::Blocker },
+                "critical" => quote! { ::allure_rs::__private::Severity::Critical },
+                "normal" => quote! { ::allure_rs::__private::Severity::Normal },
+                "minor" => quote! { ::allure_rs::__private::Severity::Minor },
+                "trivial" => quote! { ::allure_rs::__private::Severity::Trivial },
+                _ => quote! { ::allure_rs::__private::Severity::Normal },
             };
-            quote! { ::allure_core::runtime::severity(#severity); }
+            quote! { ::allure_rs::__private::runtime::severity(#severity); }
         }
-        "owner" => quote! { ::allure_core::runtime::owner(#value_str); },
-        "tag" => quote! { ::allure_core::runtime::tag(#value_str); },
-        "id" => quote! { ::allure_core::runtime::allure_id(#value_str); },
-        "description" => quote! { ::allure_core::runtime::description(#value_str); },
-        "description_html" => quote! { ::allure_core::runtime::description_html(#value_str); },
-        "title" => quote! { ::allure_core::runtime::title(#value_str); },
+        "owner" => quote! { ::allure_rs::__private::runtime::owner(#value_str); },
+        "tag" => quote! { ::allure_rs::__private::runtime::tag(#value_str); },
+        "id" => quote! { ::allure_rs::__private::runtime::allure_id(#value_str); },
+        "description" => quote! { ::allure_rs::__private::runtime::description(#value_str); },
+        "description_html" => quote! { ::allure_rs::__private::runtime::description_html(#value_str); },
+        "title" => quote! { ::allure_rs::__private::runtime::title(#value_str); },
         _ => quote! {},
     };
 
@@ -1013,9 +1013,9 @@ fn link_attr(link_type: &str, attr: TokenStream, item: TokenStream) -> TokenStre
         .unwrap_or(quote! { None });
 
     let runtime_call = match link_type {
-        "issue" => quote! { ::allure_core::runtime::issue(#url, #name_opt); },
-        "tms" => quote! { ::allure_core::runtime::tms(#url, #name_opt); },
-        "link" => quote! { ::allure_core::runtime::link(#url, #name_opt); },
+        "issue" => quote! { ::allure_rs::__private::runtime::issue(#url, #name_opt); },
+        "tms" => quote! { ::allure_rs::__private::runtime::tms(#url, #name_opt); },
+        "link" => quote! { ::allure_rs::__private::runtime::link(#url, #name_opt); },
         _ => quote! {},
     };
 
@@ -1093,7 +1093,7 @@ pub fn allure_step(input: TokenStream) -> TokenStream {
     let body = step_input.body;
 
     let expanded = quote! {
-        ::allure_core::runtime::step(#name, || { #body })
+        ::allure_rs::__private::runtime::step(#name, || { #body })
     };
 
     expanded.into()

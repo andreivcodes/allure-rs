@@ -112,6 +112,12 @@
 // Re-export everything from allure-core
 pub use allure_core::*;
 
+// Hidden re-export of allure_core for macro-generated code.
+// This allows users to only depend on allure-rs without needing
+// a separate allure-core dependency.
+#[doc(hidden)]
+pub use allure_core as __private;
+
 // Re-export all proc macros
 pub use allure_macros::{
     allure_description, allure_description_html, allure_epic, allure_epics, allure_feature,

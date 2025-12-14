@@ -21,4 +21,5 @@ proc-macro2.workspace = true
 
 [dev-dependencies]
 trybuild = "1.0"
-allure-core = { version = "0.1.1", path = "../allure-core" }
+allure-core = { version = "0.1.2", path = "../allure-core" }
+allure-rs = { version = "0.1.2", path = "../allure" }
