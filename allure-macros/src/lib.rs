@@ -761,36 +761,6 @@ pub fn allure_title(attr: TokenStream, item: TokenStream) -> TokenStream {
     metadata_attr("title", attr, item)
 }
 
-/// Marks a test as a manual test (not automated).
-///
-/// # Example
-///
-/// ```ignore
-/// use allure_macros::{allure_test, allure_manual};
-///
-/// #[allure_manual]
-/// #[allure_test]
-/// fn test_manual_verification() { }
-/// ```
-#[proc_macro_attribute]
-pub fn allure_manual(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemFn);
-    let visibility = &input.vis;
-    let attrs = &input.attrs;
-    let block = &input.block;
-    let sig = &input.sig;
-
-    let expanded = quote! {
-        #(#attrs)*
-        #visibility #sig {
-            ::allure_core::runtime::label("ALLURE_MANUAL", "true");
-            #block
-        }
-    };
-
-    expanded.into()
-}
-
 /// Adds multiple epic labels to a test.
 ///
 /// # Example

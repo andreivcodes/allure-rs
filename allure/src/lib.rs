@@ -115,10 +115,10 @@ pub use allure_core::*;
 // Re-export all proc macros
 pub use allure_macros::{
     allure_description, allure_description_html, allure_epic, allure_epics, allure_feature,
-    allure_features, allure_flaky, allure_id, allure_issue, allure_link, allure_manual,
-    allure_owner, allure_parent_suite, allure_severity, allure_step, allure_step_fn,
-    allure_stories, allure_story, allure_sub_suite, allure_suite, allure_suite_label, allure_tag,
-    allure_tags, allure_test, allure_title, allure_tms,
+    allure_features, allure_flaky, allure_id, allure_issue, allure_link, allure_owner,
+    allure_parent_suite, allure_severity, allure_step, allure_step_fn, allure_stories,
+    allure_story, allure_sub_suite, allure_suite, allure_suite_label, allure_tag, allure_tags,
+    allure_test, allure_title, allure_tms,
 };
 
 /// Prelude module for convenient imports.
@@ -128,10 +128,10 @@ pub mod prelude {
     // Proc macros
     pub use allure_macros::{
         allure_description, allure_description_html, allure_epic, allure_epics, allure_feature,
-        allure_features, allure_flaky, allure_id, allure_issue, allure_link, allure_manual,
-        allure_owner, allure_parent_suite, allure_severity, allure_step, allure_step_fn,
-        allure_stories, allure_story, allure_sub_suite, allure_suite, allure_suite_label,
-        allure_tag, allure_tags, allure_test, allure_title, allure_tms,
+        allure_features, allure_flaky, allure_id, allure_issue, allure_link, allure_owner,
+        allure_parent_suite, allure_severity, allure_step, allure_step_fn, allure_stories,
+        allure_story, allure_sub_suite, allure_suite, allure_suite_label, allure_tag, allure_tags,
+        allure_test, allure_title, allure_tms,
     };
 
     // Core types
