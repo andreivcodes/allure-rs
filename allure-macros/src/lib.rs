@@ -964,7 +964,9 @@ fn metadata_attr(meta_type: &str, attr: TokenStream, item: TokenStream) -> Token
         "tag" => quote! { ::allure_rs::__private::runtime::tag(#value_str); },
         "id" => quote! { ::allure_rs::__private::runtime::allure_id(#value_str); },
         "description" => quote! { ::allure_rs::__private::runtime::description(#value_str); },
-        "description_html" => quote! { ::allure_rs::__private::runtime::description_html(#value_str); },
+        "description_html" => {
+            quote! { ::allure_rs::__private::runtime::description_html(#value_str); }
+        }
         "title" => quote! { ::allure_rs::__private::runtime::title(#value_str); },
         _ => quote! {},
     };
