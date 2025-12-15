@@ -133,6 +133,72 @@ environment()
 | `#[allure_link("...")]` | Generic link |
 | `#[allure_flaky]` | Mark test as flaky |
 
+## Test Organization Hierarchies
+
+Allure provides two hierarchies for organizing tests in reports:
+
+### Behavior-Based Hierarchy (Epic → Feature → Story)
+
+This hierarchy aligns with agile/BDD methodologies:
+
+| Level | Purpose | Example |
+|-------|---------|---------|
+| **Epic** | Large business capability or initiative | "E-commerce Platform" |
+| **Feature** | Specific functionality within an epic | "Shopping Cart" |
+| **Story** | User scenario describing expected behavior | "User can add items to cart" |
+
+```rust
+use allure_rs::prelude::*;
+
+#[allure_epic("E-commerce Platform")]
+#[allure_feature("Shopping Cart")]
+#[allure_story("User can add items to cart")]
+#[allure_test]
+fn test_add_item_to_cart() {
+    // ...
+}
+```
+
+In the Allure report, this test appears under: **Behaviors → E-commerce Platform → Shopping Cart → User can add items to cart**
+
+### Suite-Based Hierarchy (Parent Suite → Suite → Sub-Suite)
+
+Alternative organizational structure based on test suites:
+
+| Level | Purpose | Example |
+|-------|---------|---------|
+| **Parent Suite** | Top-level grouping | "API Tests" |
+| **Suite** | Test suite | "User Endpoints" |
+| **Sub-Suite** | Fine-grained grouping | "Authentication" |
+
+```rust
+use allure_rs::prelude::*;
+
+#[allure_parent_suite("API Tests")]
+#[allure_suite_label("User Endpoints")]
+#[allure_sub_suite("Authentication")]
+#[allure_test]
+fn test_user_login() {
+    // ...
+}
+```
+
+### Multiple Values
+
+Use plural macros to assign tests to multiple categories:
+
+```rust
+use allure_rs::prelude::*;
+
+#[allure_epics("Platform A", "Platform B")]
+#[allure_features("Login", "Security")]
+#[allure_stories("Valid credentials", "SSO login")]
+#[allure_test]
+fn test_cross_platform_sso() {
+    // ...
+}
+```
+
 ## Viewing Reports
 
 After running tests, generate the HTML report using the [Allure CLI](https://allurereport.org/docs/install/):
