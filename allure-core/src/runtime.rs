@@ -10,6 +10,11 @@ use std::sync::OnceLock;
 #[cfg(feature = "tokio")]
 use std::sync::{Arc, Mutex};
 
+#[cfg(feature = "tokio")]
+type SharedAsyncContext = Arc<Mutex<Option<TestContext>>>;
+#[cfg(feature = "tokio")]
+type GlobalAsyncContext = Mutex<Option<SharedAsyncContext>>;
+
 use crate::enums::{ContentType, LabelName, LinkType, Severity, Status};
 use crate::model::{Attachment, Label, Parameter, StepResult, TestResult, TestResultContainer};
 use crate::writer::{compute_history_id, generate_uuid, AllureWriter};
@@ -19,12 +24,12 @@ static CONFIG: OnceLock<AllureConfig> = OnceLock::new();
 
 #[cfg(feature = "tokio")]
 tokio::task_local! {
-    static TOKIO_CONTEXT: RefCell<Option<Arc<Mutex<Option<TestContext>>>>>;
+    static TOKIO_CONTEXT: RefCell<Option<SharedAsyncContext>>;
 }
 
 #[cfg(feature = "tokio")]
-fn global_async_context() -> &'static Mutex<Option<Arc<Mutex<Option<TestContext>>>>> {
-    static GLOBAL: OnceLock<Mutex<Option<Arc<Mutex<Option<TestContext>>>>>> = OnceLock::new();
+fn global_async_context() -> &'static GlobalAsyncContext {
+    static GLOBAL: OnceLock<GlobalAsyncContext> = OnceLock::new();
     GLOBAL.get_or_init(|| Mutex::new(None))
 }
 
