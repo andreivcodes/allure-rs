@@ -46,8 +46,9 @@ pub use model::{
 pub use runtime::{
     allure_id, attach_binary, attach_file, attach_json, attach_text, configure, description,
     description_html, display_name, epic, feature, flaky, issue, known_issue, label, link,
-    log_step, muted, owner, parameter, parent_suite, run_test, severity, step, story, sub_suite,
-    suite, tag, tags, test_case_id, title, tms, with_context, with_test_context, AllureConfig,
+    log_step, muted, owner, parameter, parameter_excluded, parameter_hidden, parameter_masked,
+    parent_suite, run_test, severity, skip, step, story, sub_suite, suite, tag, tags, test_case_id,
+    title, tms, with_async_context, with_context, with_test_context, AllureConfig,
     AllureConfigBuilder, TestContext,
 };
 pub use writer::{compute_history_id, generate_uuid, AllureWriter, DEFAULT_RESULTS_DIR};
@@ -153,6 +154,11 @@ pub mod attachment {
     /// Attaches CSV content.
     pub fn csv(name: impl Into<String>, content: impl AsRef<str>) {
         attach_binary(name, content.as_ref().as_bytes(), ContentType::Csv);
+    }
+
+    /// Attaches an Allure image diff payload.
+    pub fn image_diff(name: impl Into<String>, content: &[u8]) {
+        attach_binary(name, content, ContentType::ImageDiff);
     }
 }
 
@@ -271,6 +277,11 @@ pub fn categories() -> CategoriesBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::{set_context, take_context, TestContext};
+    use crate::writer::AllureWriter;
+    use serde_json::json;
+    use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_bdd_step_names() {
@@ -300,5 +311,105 @@ mod tests {
             .with_category(Category::new("Custom").with_status(Status::Skipped));
 
         assert_eq!(builder.categories.len(), 3);
+    }
+
+    #[test]
+    fn test_builder_defaults_use_default_dir() {
+        let env_builder = EnvironmentBuilder::default();
+        assert_eq!(env_builder.results_dir, DEFAULT_RESULTS_DIR);
+
+        let cat_builder = CategoriesBuilder::default();
+        assert_eq!(cat_builder.results_dir, DEFAULT_RESULTS_DIR);
+    }
+
+    #[test]
+    fn test_attachment_helpers_write_all_types() {
+        let temp = tempdir().unwrap();
+        let mut ctx = TestContext::new("attach", "module::attach");
+        ctx.writer = AllureWriter::with_results_dir(temp.path());
+        ctx.writer.init(true).unwrap();
+
+        let file_path = temp.path().join("sample.txt");
+        fs::write(&file_path, "sample file").unwrap();
+
+        set_context(ctx);
+
+        attachment::text("Text", "hello");
+        attachment::json("Json", &json!({"field": "value"}));
+        attachment::binary("Bin", b"\x00\x01", ContentType::Zip);
+        attachment::png("Png", b"png-bytes");
+        attachment::jpeg("Jpeg", b"jpeg-bytes");
+        attachment::html("Html", "<p>hi</p>");
+        attachment::xml("Xml", "<xml/>");
+        attachment::csv("Csv", "a,b,c");
+        attachment::image_diff("Diff", b"{}");
+        attachment::file("File", &file_path, None);
+
+        let ctx = take_context().unwrap();
+        assert_eq!(ctx.result.attachments.len(), 10);
+
+        let mut kinds = Vec::new();
+        for att in &ctx.result.attachments {
+            let path = temp.path().join(&att.source);
+            assert!(path.exists(), "attachment file missing: {}", att.source);
+            kinds.push(att.r#type.clone());
+        }
+
+        let has = |mime: &str| kinds.iter().any(|t| t.as_deref() == Some(mime));
+        assert!(has("text/plain"));
+        assert!(has("application/json"));
+        assert!(has("application/zip"));
+        assert!(has("image/png"));
+        assert!(has("image/jpeg"));
+        assert!(has("text/html"));
+        assert!(has("application/xml"));
+        assert!(has("text/csv"));
+        assert!(has("application/vnd.allure.image.diff"));
+    }
+
+    #[test]
+    fn test_environment_builder_set_from_env_and_write() {
+        let temp = tempdir().unwrap();
+        std::env::set_var("ALLURE_ENV_TEST_KEY", "from_env");
+
+        let path = environment()
+            .results_dir(temp.path().to_string_lossy().to_string())
+            .set("key", "value")
+            .set_from_env("env_key", "ALLURE_ENV_TEST_KEY")
+            .write()
+            .unwrap();
+
+        let contents = fs::read_to_string(path).unwrap();
+        assert!(contents.contains("key=value"));
+        assert!(contents.contains("env_key=from_env"));
+    }
+
+    #[test]
+    fn test_categories_builder_write_includes_defaults() {
+        let temp = tempdir().unwrap();
+        let path = categories()
+            .results_dir(temp.path().to_string_lossy().to_string())
+            .with_product_defects()
+            .with_test_defects()
+            .with_category(
+                Category::new("Custom")
+                    .with_status(Status::Skipped)
+                    .with_message_regex("oops")
+                    .with_trace_regex("trace")
+                    .as_flaky(),
+            )
+            .write()
+            .unwrap();
+
+        let contents = fs::read_to_string(path).unwrap();
+        let cats: Vec<Category> = serde_json::from_str(&contents).unwrap();
+        assert_eq!(cats.len(), 3);
+        assert!(cats.iter().any(|c| c.name == "Product defects"));
+        assert!(cats.iter().any(|c| c.name == "Test defects"));
+        let custom = cats.iter().find(|c| c.name == "Custom").unwrap();
+        assert_eq!(custom.matched_statuses, vec![Status::Skipped]);
+        assert_eq!(custom.message_regex.as_deref(), Some("oops"));
+        assert_eq!(custom.trace_regex.as_deref(), Some("trace"));
+        assert_eq!(custom.flaky, Some(true));
     }
 }

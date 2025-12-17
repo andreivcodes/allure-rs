@@ -445,4 +445,37 @@ mod tests {
         assert_ne!(uuid1, uuid2);
         assert_eq!(uuid1.len(), 36); // UUID v4 format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
     }
+
+    #[test]
+    fn test_writer_new_and_results_dir() {
+        let writer = AllureWriter::new();
+        assert_eq!(writer.results_dir(), Path::new(DEFAULT_RESULTS_DIR));
+
+        let custom = AllureWriter::with_results_dir("custom-dir");
+        assert_eq!(custom.results_dir(), Path::new("custom-dir"));
+    }
+
+    #[test]
+    fn test_write_binary_attachment_with_custom_mime() {
+        let dir = temp_dir();
+        let writer = AllureWriter::with_results_dir(&dir);
+        writer.init(true).unwrap();
+
+        let attachment = writer
+            .write_binary_attachment_with_mime("bin", b"123", "application/x-test", "bin")
+            .unwrap();
+        assert_eq!(attachment.r#type, Some("application/x-test".to_string()));
+        assert!(attachment.source.ends_with(".bin"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_escape_and_guess_mime_helpers() {
+        assert_eq!(
+            escape_property_value("a\\b=c\n"),
+            "a\\\\b\\=c\\n".to_string()
+        );
+        assert_eq!(guess_mime_type("json").as_deref(), Some("application/json"));
+        assert_eq!(guess_mime_type("unknown"), None);
+    }
 }

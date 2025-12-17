@@ -3,16 +3,30 @@
 //! This module provides thread-local storage for synchronous tests and
 //! optional tokio task-local storage for async tests.
 
+use std::backtrace::Backtrace;
 use std::cell::RefCell;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::OnceLock;
+#[cfg(feature = "tokio")]
+use std::sync::{Arc, Mutex};
 
 use crate::enums::{ContentType, LabelName, LinkType, Severity, Status};
-use crate::model::{Attachment, Label, StepResult, TestResult};
+use crate::model::{Attachment, Label, Parameter, StepResult, TestResult, TestResultContainer};
 use crate::writer::{compute_history_id, generate_uuid, AllureWriter};
 
 /// Global configuration for the Allure runtime.
 static CONFIG: OnceLock<AllureConfig> = OnceLock::new();
+
+#[cfg(feature = "tokio")]
+tokio::task_local! {
+    static TOKIO_CONTEXT: RefCell<Option<Arc<Mutex<Option<TestContext>>>>>;
+}
+
+#[cfg(feature = "tokio")]
+fn global_async_context() -> &'static Mutex<Option<Arc<Mutex<Option<TestContext>>>>> {
+    static GLOBAL: OnceLock<Mutex<Option<Arc<Mutex<Option<TestContext>>>>>> = OnceLock::new();
+    GLOBAL.get_or_init(|| Mutex::new(None))
+}
 
 /// Configuration for the Allure runtime.
 #[derive(Debug, Clone)]
@@ -141,6 +155,15 @@ impl TestContext {
         }
     }
 
+    /// Adds a parameter with custom options (hidden/masked/excluded).
+    pub fn add_parameter_struct(&mut self, parameter: Parameter) {
+        if let Some(step) = self.step_stack.last_mut() {
+            step.parameters.push(parameter);
+        } else {
+            self.result.parameters.push(parameter);
+        }
+    }
+
     /// Adds an attachment to the current test or step.
     pub fn add_attachment(&mut self, attachment: Attachment) {
         if let Some(step) = self.step_stack.last_mut() {
@@ -201,6 +224,17 @@ impl TestContext {
             Status::Passed => self.result.pass(),
             Status::Failed => self.result.fail(message, trace),
             Status::Broken => self.result.broken(message, trace),
+            Status::Skipped => {
+                if message.is_some() || trace.is_some() {
+                    self.result.status_details = Some(crate::model::StatusDetails {
+                        message,
+                        trace,
+                        ..Default::default()
+                    });
+                }
+                self.result.status = status;
+                self.result.finish();
+            }
             _ => {
                 self.result.status = status;
                 self.result.finish();
@@ -210,6 +244,15 @@ impl TestContext {
         // Write the result
         if let Err(e) = self.writer.write_test_result(&self.result) {
             eprintln!("Failed to write Allure test result: {}", e);
+        }
+
+        // Emit a container linking this test (even if no fixtures are present yet)
+        let mut container = TestResultContainer::new(generate_uuid());
+        container.children.push(self.result.uuid.clone());
+        container.start = Some(self.result.start);
+        container.stop = Some(self.result.stop);
+        if let Err(e) = self.writer.write_container(&container) {
+            eprintln!("Failed to write Allure container: {}", e);
         }
     }
 
@@ -273,6 +316,29 @@ pub fn set_context(ctx: TestContext) {
 
 /// Takes the current test context, leaving None in its place.
 pub fn take_context() -> Option<TestContext> {
+    #[cfg(feature = "tokio")]
+    {
+        if let Ok(context) = TOKIO_CONTEXT.try_with(|c| {
+            let handle_opt = c.borrow().clone();
+            handle_opt.and_then(|handle| {
+                let mut guard = handle.lock().unwrap();
+                guard.take()
+            })
+        }) {
+            if context.is_some() {
+                return context;
+            }
+        }
+
+        let global = global_async_context().lock().unwrap().clone();
+        if let Some(handle) = global {
+            let mut guard = handle.lock().unwrap();
+            if let Some(ctx) = guard.take() {
+                return Some(ctx);
+            }
+        }
+    }
+
     CURRENT_CONTEXT.with(|c| c.borrow_mut().take())
 }
 
@@ -281,9 +347,44 @@ pub fn with_context<F, R>(f: F) -> Option<R>
 where
     F: FnOnce(&mut TestContext) -> R,
 {
+    let mut f_opt = Some(f);
+
+    #[cfg(feature = "tokio")]
+    {
+        if let Ok(result) = TOKIO_CONTEXT.try_with(|c| {
+            let handle_opt = c.borrow().clone();
+            handle_opt.and_then(|handle| {
+                if let Some(func) = f_opt.take() {
+                    let mut guard = handle.lock().unwrap();
+                    guard.as_mut().map(func)
+                } else {
+                    None
+                }
+            })
+        }) {
+            if result.is_some() {
+                return result;
+            }
+        }
+
+        let handle_opt = global_async_context().lock().unwrap().clone();
+        if let Some(handle) = handle_opt {
+            if let Some(func) = f_opt.take() {
+                let mut guard = handle.lock().unwrap();
+                if let Some(ctx) = guard.as_mut() {
+                    return Some(func(ctx));
+                }
+            }
+        }
+    }
+
     CURRENT_CONTEXT.with(|c| {
         let mut ctx = c.borrow_mut();
-        ctx.as_mut().map(f)
+        if let (Some(func), Some(ctx)) = (f_opt.take(), ctx.as_mut()) {
+            Some(func(ctx))
+        } else {
+            None
+        }
     })
 }
 
@@ -315,7 +416,8 @@ where
     // Finish the test context
     if let Some(mut ctx) = take_context() {
         if is_err {
-            ctx.finish(Status::Failed, panic_payload, None);
+            let trace = capture_trace();
+            ctx.finish(Status::Failed, panic_payload, trace);
         } else {
             ctx.finish(Status::Passed, None, None);
         }
@@ -573,6 +675,21 @@ pub fn parameter(name: impl Into<String>, value: impl ToString) {
     with_context(|ctx| ctx.add_parameter(name, value.to_string()));
 }
 
+/// Adds a parameter hidden from display (value not shown in the report).
+pub fn parameter_hidden(name: impl Into<String>, value: impl ToString) {
+    with_context(|ctx| ctx.add_parameter_struct(Parameter::hidden(name, value.to_string())));
+}
+
+/// Adds a parameter with a masked value (e.g., passwords).
+pub fn parameter_masked(name: impl Into<String>, value: impl ToString) {
+    with_context(|ctx| ctx.add_parameter_struct(Parameter::masked(name, value.to_string())));
+}
+
+/// Adds a parameter excluded from history ID calculation.
+pub fn parameter_excluded(name: impl Into<String>, value: impl ToString) {
+    with_context(|ctx| ctx.add_parameter_struct(Parameter::excluded(name, value.to_string())));
+}
+
 /// Executes a step with the given name and body.
 ///
 /// Steps are the building blocks of test reports. They provide
@@ -629,7 +746,8 @@ where
             } else {
                 Some("Step panicked".to_string())
             };
-            with_context(|ctx| ctx.finish_step(Status::Failed, message, None));
+            let trace = capture_trace();
+            with_context(|ctx| ctx.finish_step(Status::Failed, message, trace));
         }
     }
 
@@ -800,6 +918,14 @@ pub fn known_issue(issue_id: impl Into<String>) {
     });
 }
 
+/// Marks the current test as skipped and finalizes the result.
+pub fn skip(reason: impl Into<String>) {
+    let reason = reason.into();
+    if let Some(mut ctx) = take_context() {
+        ctx.finish(Status::Skipped, Some(reason), None);
+    }
+}
+
 /// Sets the display name for the current test.
 ///
 /// This overrides the test name that was set when the test context was created.
@@ -825,9 +951,54 @@ pub fn attach_file(
     with_context(|ctx| ctx.attach_file(name, path, content_type));
 }
 
+/// Captures a backtrace as a string when available.
+fn capture_trace() -> Option<String> {
+    let bt = Backtrace::force_capture();
+    let snapshot = format!("{bt:?}");
+    if snapshot.contains("disabled") {
+        return None;
+    }
+    Some(snapshot)
+}
+
+/// Executes an async block with a task-local test context (tokio only).
+#[cfg(feature = "tokio")]
+pub async fn with_async_context<F, R>(ctx: TestContext, fut: F) -> R
+where
+    F: std::future::Future<Output = R>,
+{
+    let handle = Arc::new(Mutex::new(Some(ctx)));
+    {
+        let mut slot = global_async_context().lock().unwrap();
+        *slot = Some(handle.clone());
+    }
+
+    let cell = RefCell::new(Some(handle));
+    let result = TOKIO_CONTEXT.scope(cell, fut).await;
+
+    let mut slot = global_async_context().lock().unwrap();
+    slot.take();
+
+    result
+}
+
+/// Executes an async block with a thread-local test context (non-tokio fallback).
+#[cfg(not(feature = "tokio"))]
+pub async fn with_async_context<F, R>(ctx: TestContext, fut: F) -> R
+where
+    F: std::future::Future<Output = R>,
+{
+    set_context(ctx);
+    let result = fut.await;
+    let _ = take_context();
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
+    use std::path::PathBuf;
 
     #[test]
     fn test_config_builder() {
@@ -882,5 +1053,250 @@ mod tests {
             .labels
             .iter()
             .any(|l| l.name == "custom" && l.value == "value"));
+    }
+
+    #[test]
+    fn test_capture_trace_runs() {
+        // We only assert that it does not panic and returns an Option.
+        let _maybe_trace = capture_trace();
+    }
+
+    #[test]
+    fn test_run_test_writes_results_and_container_on_panic() {
+        let desired_dir = PathBuf::from("target/allure-runtime-tests");
+        let _ = std::fs::remove_dir_all(&desired_dir);
+
+        let config_ref = CONFIG.get_or_init(|| AllureConfig {
+            results_dir: desired_dir.to_string_lossy().to_string(),
+            clean_results: true,
+        });
+        let dir = PathBuf::from(&config_ref.results_dir);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let outcome = std::panic::catch_unwind(|| {
+            run_test("panic_test", "runtime::panic_test", || {
+                panic!("runtime boom");
+            });
+        });
+        assert!(outcome.is_err());
+
+        let mut result_files = Vec::new();
+        let mut container_files = Vec::new();
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                let name = path.file_name().unwrap().to_string_lossy().to_string();
+                if name.contains("-result.json") {
+                    result_files.push(path.clone());
+                } else if name.contains("-container.json") {
+                    container_files.push(path.clone());
+                }
+            }
+        }
+
+        assert!(!result_files.is_empty());
+        assert!(!container_files.is_empty());
+
+        let result_json: Value =
+            serde_json::from_str(&std::fs::read_to_string(&result_files[0]).unwrap()).unwrap();
+        assert_eq!(result_json["status"], "failed");
+        assert!(result_json["statusDetails"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("runtime boom"));
+    }
+
+    #[cfg(feature = "tokio")]
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_take_context_reads_tokio_task_local() {
+        let ctx = TestContext::new("tokio_ctx", "module::tokio_ctx");
+        let taken = with_async_context(ctx, async {
+            let inner = take_context();
+            assert!(inner.is_some());
+            inner.unwrap().result.name
+        })
+        .await;
+        assert_eq!(taken, "tokio_ctx");
+    }
+
+    #[cfg(feature = "tokio")]
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_with_context_uses_tokio_task_local() {
+        let ctx = TestContext::new("tokio_ctx", "module::tokio_ctx");
+        with_async_context(ctx, async {
+            let mut seen = None;
+            with_context(|c| {
+                seen = Some(c.result.name.clone());
+            });
+            assert_eq!(seen.as_deref(), Some("tokio_ctx"));
+        })
+        .await;
+    }
+
+    #[test]
+    fn test_with_test_context_clears_after_use() {
+        with_test_context(|| {
+            label("temp", "value");
+        });
+        assert!(take_context().is_none());
+    }
+
+    #[test]
+    fn test_tags_and_metadata_helpers() {
+        let ctx = TestContext::new("meta", "module::meta");
+        set_context(ctx);
+
+        label("env", "staging");
+        tags(&["smoke", "api"]);
+        title("Custom Title");
+        description("Markdown");
+        description_html("<p>HTML</p>");
+        test_case_id("TC-1");
+
+        let ctx = take_context().unwrap();
+        assert_eq!(ctx.result.name, "Custom Title");
+        assert_eq!(ctx.result.description.as_deref(), Some("Markdown"));
+        assert_eq!(ctx.result.description_html.as_deref(), Some("<p>HTML</p>"));
+        assert_eq!(ctx.result.test_case_id.as_deref(), Some("TC-1"));
+        assert!(ctx.result.labels.iter().any(|l| l.value == "staging"));
+        assert!(ctx.result.labels.iter().any(|l| l.value == "smoke"));
+        assert!(ctx.result.labels.iter().any(|l| l.value == "api"));
+    }
+
+    #[test]
+    fn test_step_failure_records_message_and_rethrows() {
+        let ctx = TestContext::new("step_fail", "module::step_fail");
+        set_context(ctx);
+
+        let result = std::panic::catch_unwind(|| {
+            step("will panic", || panic!("boom step"));
+        });
+        assert!(result.is_err());
+
+        let ctx = take_context().unwrap();
+        assert_eq!(ctx.result.steps.len(), 1);
+        let step = &ctx.result.steps[0];
+        assert_eq!(step.status, Status::Failed);
+        assert!(step
+            .status_details
+            .as_ref()
+            .unwrap()
+            .message
+            .as_ref()
+            .unwrap()
+            .contains("boom step"));
+    }
+
+    #[test]
+    fn test_finish_step_skipped_branch() {
+        let mut ctx = TestContext::new("skip_step", "module::skip_step");
+        ctx.start_step("inner");
+        ctx.finish_step(
+            Status::Skipped,
+            Some("not run".into()),
+            Some("trace".into()),
+        );
+        assert_eq!(ctx.result.steps[0].status, Status::Skipped);
+        assert_eq!(ctx.result.steps[0].stage, crate::enums::Stage::Finished);
+    }
+
+    #[test]
+    fn test_finish_step_broken_and_unknown_branches() {
+        let mut ctx = TestContext::new("broken_step", "module::broken_step");
+        ctx.start_step("broken");
+        ctx.finish_step(Status::Broken, Some("oops".into()), None);
+        assert_eq!(ctx.result.steps[0].status, Status::Broken);
+        assert!(ctx.result.steps[0]
+            .status_details
+            .as_ref()
+            .unwrap()
+            .message
+            .as_ref()
+            .unwrap()
+            .contains("oops"));
+
+        ctx.start_step("unknown");
+        ctx.finish_step(Status::Unknown, None, None);
+        assert_eq!(ctx.result.steps[1].status, Status::Unknown);
+        assert_eq!(ctx.result.steps[1].stage, crate::enums::Stage::Finished);
+    }
+
+    #[test]
+    fn test_muted_sets_flag() {
+        let ctx = TestContext::new("muted_test", "module::muted_test");
+        set_context(ctx);
+        muted();
+        let ctx = take_context().unwrap();
+        let details = ctx.result.status_details.unwrap();
+        assert_eq!(details.muted, Some(true));
+    }
+
+    #[test]
+    fn test_host_env_override_used_in_context_creation() {
+        std::env::set_var("HOSTNAME", "test-host");
+        let ctx = TestContext::new("hosted", "module::hosted");
+        assert!(ctx
+            .result
+            .labels
+            .iter()
+            .any(|l| l.name == "host" && l.value == "test-host"));
+    }
+
+    #[test]
+    fn test_add_parameter_struct_applies_to_steps() {
+        let mut ctx = TestContext::new("params", "module::params");
+        ctx.start_step("outer");
+        ctx.add_parameter_struct(crate::model::Parameter::excluded("k", "v"));
+        assert_eq!(ctx.step_stack[0].parameters.len(), 1);
+        assert_eq!(ctx.step_stack[0].parameters[0].excluded, Some(true));
+    }
+
+    #[test]
+    fn test_finish_writes_and_breaks_unfinished_steps() {
+        let temp = tempfile::tempdir().unwrap();
+        CONFIG.get_or_init(|| AllureConfig {
+            results_dir: temp.path().to_string_lossy().to_string(),
+            clean_results: true,
+        });
+        let mut ctx = TestContext::new("unclosed", "module::unclosed");
+        ctx.start_step("still running");
+        ctx.finish(Status::Passed, None, None);
+        assert_eq!(ctx.result.steps[0].status, Status::Broken);
+        assert!(ctx.result.steps[0]
+            .status_details
+            .as_ref()
+            .unwrap()
+            .message
+            .as_ref()
+            .unwrap()
+            .contains("Step not completed"));
+    }
+
+    #[test]
+    fn test_finish_handles_broken_status_with_details() {
+        let temp = tempfile::tempdir().unwrap();
+        CONFIG.get_or_init(|| AllureConfig {
+            results_dir: temp.path().to_string_lossy().to_string(),
+            clean_results: true,
+        });
+        let mut ctx = TestContext::new("broken_test", "module::broken_test");
+        ctx.finish(Status::Broken, Some("fail".into()), Some("trace".into()));
+        assert_eq!(ctx.result.status, Status::Broken);
+        let details = ctx.result.status_details.as_ref().unwrap();
+        assert_eq!(details.message.as_deref(), Some("fail"));
+        assert_eq!(details.trace.as_deref(), Some("trace"));
+    }
+
+    #[test]
+    fn test_context_creation_uses_hostname_when_env_missing() {
+        // Temporarily remove HOSTNAME to exercise hostname crate path
+        let original = std::env::var("HOSTNAME").ok();
+        std::env::remove_var("HOSTNAME");
+        let ctx = TestContext::new("host", "module::host");
+        if let Some(orig) = original {
+            std::env::set_var("HOSTNAME", orig);
+        }
+        assert!(ctx.result.labels.iter().any(|l| l.name == "host"));
     }
 }

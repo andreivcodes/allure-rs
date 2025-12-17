@@ -17,6 +17,9 @@ A comprehensive Rust library for generating [Allure](https://allurereport.org/) 
 - **Links** - issue tracker and test management system links
 - **Flaky/muted test support**
 - **Environment and categories configuration**
+- **Skip & ignore support** - capture skipped tests with reasons
+- **Parameter privacy controls** - hidden/masked/excluded parameters
+- **Image diff attachments** - `application/vnd.allure.image.diff` helper
 - **Async test support** (tokio-first)
 - **Framework agnostic** - works with `#[test]`, `tokio::test`, `rstest`
 
@@ -232,6 +235,9 @@ fn test_with_runtime_api() {
     // Add parameters
     parameter("browser", "Chrome");
     parameter("version", "120.0");
+    parameter_hidden("user_id", "123"); // hidden from report
+    parameter_masked("password", "secret"); // masked in report
+    parameter_excluded("timestamp", "1700000000"); // excluded from historyId
 
     // Create steps
     step("Login step", || {
@@ -240,6 +246,8 @@ fn test_with_runtime_api() {
 
     // Add attachments
     attachment::text("Response", r#"{"status": "ok"}"#);
+    // Visual diff payloads
+    attachment::image_diff("Diff", br#"{ "expected": "...", "actual": "...", "diff": "..." }"#);
 }
 ```
 
@@ -258,6 +266,17 @@ async fn test_async_api() {
         // test code
     });
 }
+
+// Context flows into spawned tokio tasks when the `tokio` feature is enabled
+#[tokio::test]
+#[allure_test]
+async fn test_async_spawned_steps() {
+    let handle = tokio::spawn(async move {
+        // Steps and attachments here are recorded under the parent test
+        step("Inside spawned task", || {});
+    });
+    handle.await.unwrap();
+}
 ```
 
 Enable the `async` feature for async step support:
@@ -272,7 +291,7 @@ allure-rs = { version = "0.1", features = ["async"] }
 | Feature | Description |
 |---------|-------------|
 | `async` | Enable async step support with `futures` crate |
-| `tokio` | Enable tokio task-local storage for async tests |
+| `tokio` | Enable tokio task-local storage so spawned tasks inherit context |
 
 ## Crate Structure
 

@@ -28,3 +28,7 @@ allure-report/
 # Environment files
 .env
 .env.local
+
+coverage
+target
+lcov.info

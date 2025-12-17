@@ -149,8 +149,9 @@ pub mod prelude {
     pub use allure_core::{
         allure_id, attach_binary, attach_file, attach_json, attach_text, configure, description,
         description_html, display_name, epic, feature, flaky, issue, known_issue, label, link,
-        log_step, owner, parameter, parent_suite, run_test, severity, step, story, sub_suite,
-        suite, tag, tags, test_case_id, title, tms, with_test_context,
+        log_step, owner, parameter, parameter_excluded, parameter_hidden, parameter_masked,
+        parent_suite, run_test, severity, skip, step, story, sub_suite, suite, tag, tags,
+        test_case_id, title, tms, with_test_context,
     };
 
     // Attachment module

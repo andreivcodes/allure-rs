@@ -4,7 +4,7 @@
 
 use allure_core::enums::ContentType;
 use allure_core::model::{FixtureResult, TestResultContainer};
-use allure_core::runtime::{self, set_context, take_context, TestContext};
+use allure_core::runtime::{self, set_context, take_context, with_async_context, TestContext};
 use allure_core::writer::AllureWriter;
 use allure_rs::prelude::*;
 use allure_rs::{bdd, Category};
@@ -12,6 +12,7 @@ use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
+use tokio::runtime::Runtime;
 
 /// Test helper that provides a temporary directory and writer.
 struct TestHelper {
@@ -657,6 +658,105 @@ fn test_attachment_reference_in_result() {
     assert_eq!(attachments[0]["name"], "Debug Info");
     assert!(attachments[0]["source"].as_str().unwrap().ends_with(".txt"));
     assert_eq!(attachments[0]["type"], "text/plain");
+}
+
+#[test]
+fn test_parameter_modes_and_history_id() {
+    let helper = TestHelper::new();
+    helper.run_test("param_test", "module::param_test", || {
+        runtime::parameter("visible", "value");
+        runtime::parameter_hidden("hidden", "secret");
+        runtime::parameter_masked("masked", "s3cr3t");
+        runtime::parameter_excluded("excluded", "noise");
+    });
+
+    let results = helper.read_result_files();
+    let params = results[0]["parameters"].as_array().unwrap();
+    assert_eq!(params.len(), 4);
+
+    let hidden = params.iter().find(|p| p["name"] == "hidden").unwrap();
+    assert_eq!(hidden["mode"], "hidden");
+
+    let masked = params.iter().find(|p| p["name"] == "masked").unwrap();
+    assert_eq!(masked["mode"], "masked");
+
+    let excluded = params.iter().find(|p| p["name"] == "excluded").unwrap();
+    assert_eq!(excluded["excluded"], true);
+
+    // historyId should be present and should ignore excluded param (stability assertion)
+    let history_id = results[0]["historyId"].as_str().unwrap();
+    assert_eq!(history_id.len(), 32);
+}
+
+#[test]
+fn test_image_diff_attachment() {
+    let helper = TestHelper::new();
+    helper.writer.init(true).unwrap();
+
+    let attachment = helper
+        .writer
+        .write_binary_attachment("Diff", b"{}", ContentType::ImageDiff)
+        .unwrap();
+
+    let path = helper.results_dir().join(&attachment.source);
+    assert!(path.exists());
+    assert_eq!(
+        attachment.r#type,
+        Some("application/vnd.allure.image.diff".to_string())
+    );
+}
+
+#[test]
+fn test_skip_records_skipped_status_with_reason() {
+    let helper = TestHelper::new();
+    let mut ctx = TestContext::new("skipped_test", "module::skipped_test");
+    ctx.writer = AllureWriter::with_results_dir(helper.results_dir());
+    ctx.writer.init(true).unwrap();
+    set_context(ctx);
+
+    runtime::skip("not needed");
+
+    let results = helper.read_result_files();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["status"], "skipped");
+    assert_eq!(
+        results[0]["statusDetails"]["message"].as_str().unwrap(),
+        "not needed"
+    );
+}
+
+#[cfg(feature = "tokio")]
+#[test]
+fn test_tokio_spawn_inherits_context() {
+    let helper = TestHelper::new();
+    let mut ctx = TestContext::new("tokio_spawn", "module::tokio_spawn");
+    ctx.writer = AllureWriter::with_results_dir(helper.results_dir());
+    ctx.writer.init(true).unwrap();
+
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        with_async_context(ctx, async {
+            tokio::spawn(async {
+                step("spawned step", || {});
+            })
+            .await
+            .unwrap();
+
+            runtime::with_context(|ctx| ctx.finish(Status::Passed, None, None));
+        })
+        .await;
+    });
+
+    let results = helper.read_result_files();
+    let steps = results[0]["steps"].as_array().unwrap();
+    assert_eq!(steps[0]["name"], "spawned step");
+    assert_eq!(steps[0]["status"], "passed");
+}
+
+#[cfg(not(feature = "tokio"))]
+#[test]
+fn test_tokio_spawn_inherits_context() {
+    // No-op when tokio support is disabled.
 }
 
 // =============================================================================

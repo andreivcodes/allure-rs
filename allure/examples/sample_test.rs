@@ -3,6 +3,7 @@
 use allure_core::runtime::{set_context, take_context, TestContext};
 use allure_core::writer::AllureWriter;
 use allure_rs::prelude::*;
+use allure_rs::ContentType;
 
 fn main() {
     // Set up the results directory
@@ -25,6 +26,12 @@ fn main() {
         step("Perform login", || {
             // login code
         });
+
+        // Sensitive parameters with display controls
+        parameter("browser", "chrome");
+        parameter_hidden("user_id", "12345");
+        parameter_masked("password", "super-secret");
+        parameter_excluded("timestamp", "1700000000");
     });
 
     // 2. Test with BDD steps
@@ -61,6 +68,15 @@ fn main() {
             // We need to add this to the current context
             allure_core::runtime::with_context(|ctx| {
                 ctx.result.attachments.push(attachment);
+            });
+
+            // Image diff payloads (Allure UI understands this MIME type)
+            let diff_payload = br#"{ "expected": "...", "actual": "...", "diff": "..." }"#;
+            let image_diff = writer
+                .write_binary_attachment("Visual Diff", diff_payload, ContentType::ImageDiff)
+                .unwrap();
+            allure_core::runtime::with_context(|ctx| {
+                ctx.result.attachments.push(image_diff);
             });
         },
     );
