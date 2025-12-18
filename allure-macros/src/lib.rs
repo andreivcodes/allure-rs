@@ -92,9 +92,11 @@ fn ignore_async_block(
 ) -> proc_macro2::TokenStream {
     if has_ignore {
         quote! {
-            let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
-            ::allure_core::runtime::skip(reason);
-            return Ok(None);
+            if ::std::hint::black_box(true) {
+                let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
+                ::allure_core::runtime::skip(reason);
+                return Ok(None);
+            }
         }
     } else {
         quote! {}
@@ -108,11 +110,13 @@ fn ignore_finish_block(
 ) -> proc_macro2::TokenStream {
     if has_ignore {
         quote! {
-            let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
-            if let Some(mut ctx) = take_context() {
-                ctx.finish(Status::Skipped, Some(reason), None);
+            if ::std::hint::black_box(true) {
+                let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
+                if let Some(mut ctx) = take_context() {
+                    ctx.finish(Status::Skipped, Some(reason), None);
+                }
+                #return_stmt
             }
-            #return_stmt
         }
     } else {
         quote! {}
