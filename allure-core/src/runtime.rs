@@ -334,7 +334,15 @@ pub fn take_context() -> Option<TestContext> {
                 return context;
             }
         }
+    }
 
+    let thread_local = CURRENT_CONTEXT.with(|c| c.borrow_mut().take());
+    if thread_local.is_some() {
+        return thread_local;
+    }
+
+    #[cfg(feature = "tokio")]
+    {
         let global = global_async_context().lock().unwrap().clone();
         if let Some(handle) = global {
             let mut guard = handle.lock().unwrap();
@@ -344,7 +352,7 @@ pub fn take_context() -> Option<TestContext> {
         }
     }
 
-    CURRENT_CONTEXT.with(|c| c.borrow_mut().take())
+    None
 }
 
 /// Executes a function with the current test context.
@@ -358,39 +366,49 @@ where
     {
         if let Ok(result) = TOKIO_CONTEXT.try_with(|c| {
             let handle_opt = c.borrow().clone();
-            handle_opt.and_then(|handle| {
-                if let Some(func) = f_opt.take() {
-                    let mut guard = handle.lock().unwrap();
-                    guard.as_mut().map(func)
-                } else {
-                    None
+            if let Some(handle) = handle_opt {
+                let mut guard = handle.lock().unwrap();
+                if let Some(ctx) = guard.as_mut() {
+                    if let Some(func) = f_opt.take() {
+                        return Some(func(ctx));
+                    }
                 }
-            })
+            }
+            None
         }) {
             if result.is_some() {
                 return result;
             }
         }
+    }
 
-        let handle_opt = global_async_context().lock().unwrap().clone();
-        if let Some(handle) = handle_opt {
-            if let Some(func) = f_opt.take() {
-                let mut guard = handle.lock().unwrap();
-                if let Some(ctx) = guard.as_mut() {
+    let thread_local = CURRENT_CONTEXT
+        .with(|c| {
+            let mut ctx = c.borrow_mut();
+            if let Some(ctx) = ctx.as_mut() {
+                if let Some(func) = f_opt.take() {
                     return Some(func(ctx));
                 }
             }
-        }
-    }
-
-    CURRENT_CONTEXT.with(|c| {
-        let mut ctx = c.borrow_mut();
-        if let (Some(func), Some(ctx)) = (f_opt.take(), ctx.as_mut()) {
-            Some(func(ctx))
-        } else {
             None
-        }
-    })
+        })
+        .or_else(|| {
+            #[cfg(feature = "tokio")]
+            {
+                let handle_opt = global_async_context().lock().unwrap().clone();
+                if let Some(handle) = handle_opt {
+                    let mut guard = handle.lock().unwrap();
+                    if let Some(ctx) = guard.as_mut() {
+                        if let Some(func) = f_opt.take() {
+                            return Some(func(ctx));
+                        }
+                    }
+                }
+            }
+            None
+        });
+
+    thread_local
 }
 
 /// Runs a test function with Allure tracking.
