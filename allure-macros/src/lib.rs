@@ -86,6 +86,51 @@ fn is_result_return(output: &ReturnType) -> bool {
     }
 }
 
+fn ignore_async_block(
+    has_ignore: bool,
+    ignore_reason_expr: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    if has_ignore {
+        quote! {
+            let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
+            ::allure_core::runtime::skip(reason);
+            return Ok(None);
+        }
+    } else {
+        quote! {}
+    }
+}
+
+fn ignore_finish_block(
+    has_ignore: bool,
+    ignore_reason_expr: &proc_macro2::TokenStream,
+    return_stmt: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    if has_ignore {
+        quote! {
+            let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
+            if let Some(mut ctx) = take_context() {
+                ctx.finish(Status::Skipped, Some(reason), None);
+            }
+            #return_stmt
+        }
+    } else {
+        quote! {}
+    }
+}
+
+fn capture_panic_trace_expr() -> proc_macro2::TokenStream {
+    quote! {{
+        let bt = std::backtrace::Backtrace::force_capture();
+        let snapshot = format!("{bt:?}");
+        if snapshot.contains("disabled") {
+            None
+        } else {
+            Some(snapshot)
+        }
+    }}
+}
+
 /// Attribute macro that wraps a test function with Allure tracking.
 ///
 /// # Examples
@@ -172,56 +217,12 @@ fn expand_allure_test(
     } else {
         quote!(None::<String>)
     };
-    let ignore_async = if has_ignore {
-        quote! {
-            if ::std::hint::black_box(true) {
-                let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
-                ::allure_core::runtime::skip(reason);
-                return Ok(None);
-            }
-        }
-    } else {
-        quote! {}
-    };
-    let ignore_should_panic = if has_ignore {
-        quote! {
-            if ::std::hint::black_box(true) {
-                let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
-                if let Some(mut ctx) = take_context() {
-                    ctx.finish(Status::Skipped, Some(reason), None);
-                }
-                return;
-            }
-        }
-    } else {
-        quote! {}
-    };
-    let ignore_result_return = if has_ignore {
-        quote! {
-            if ::std::hint::black_box(true) {
-                let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
-                if let Some(mut ctx) = take_context() {
-                    ctx.finish(Status::Skipped, Some(reason), None);
-                }
-                return Ok(());
-            }
-        }
-    } else {
-        quote! {}
-    };
-    let ignore_sync = if has_ignore {
-        quote! {
-            if ::std::hint::black_box(true) {
-                let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
-                if let Some(mut ctx) = take_context() {
-                    ctx.finish(Status::Skipped, Some(reason), None);
-                }
-                return;
-            }
-        }
-    } else {
-        quote! {}
-    };
+    let panic_trace_expr = capture_panic_trace_expr();
+    let ignore_async = ignore_async_block(has_ignore, &ignore_reason_expr);
+    let ignore_should_panic = ignore_finish_block(has_ignore, &ignore_reason_expr, quote!(return;));
+    let ignore_result_return =
+        ignore_finish_block(has_ignore, &ignore_reason_expr, quote!(return Ok(());));
+    let ignore_sync = ignore_finish_block(has_ignore, &ignore_reason_expr, quote!(return;));
 
     if is_async {
         // For async tests - wrap in catch_unwind to handle panics
@@ -265,15 +266,7 @@ fn expand_allure_test(
                             } else {
                                 Some("Test panicked".to_string())
                             };
-                            let panic_trace = {
-                                let bt = std::backtrace::Backtrace::force_capture();
-                                let snapshot = format!("{bt:?}");
-                                if snapshot.contains("disabled") {
-                                    None
-                                } else {
-                                    Some(snapshot)
-                                }
-                            };
+                            let panic_trace = #panic_trace_expr;
                             if let Some(mut ctx) = take_context() {
                                 ctx.finish(Status::Failed, panic_msg, panic_trace);
                             }
@@ -359,15 +352,7 @@ fn expand_allure_test(
 
                 // Finish the test context with appropriate status
                 if let Some(mut ctx) = take_context() {
-                    let panic_trace = {
-                        let bt = std::backtrace::Backtrace::force_capture();
-                        let snapshot = format!("{bt:?}");
-                        if snapshot.contains("disabled") {
-                            None
-                        } else {
-                            Some(snapshot)
-                        }
-                    };
+                    let panic_trace = #panic_trace_expr;
                     ctx.finish(status, message, panic_trace);
                 }
 
@@ -411,15 +396,7 @@ fn expand_allure_test(
                         // Result::Err - test failed via error return
                         let error_msg = format!("{:?}", e);
                         if let Some(mut ctx) = take_context() {
-                            let panic_trace = {
-                                let bt = std::backtrace::Backtrace::force_capture();
-                                let snapshot = format!("{bt:?}");
-                                if snapshot.contains("disabled") {
-                                    None
-                                } else {
-                                    Some(snapshot)
-                                }
-                            };
+                            let panic_trace = #panic_trace_expr;
                             ctx.finish(Status::Failed, Some(error_msg), panic_trace);
                         }
                         Err(e)
@@ -434,15 +411,7 @@ fn expand_allure_test(
                             Some("Test panicked".to_string())
                         };
                         if let Some(mut ctx) = take_context() {
-                            let panic_trace = {
-                                let bt = std::backtrace::Backtrace::force_capture();
-                                let snapshot = format!("{bt:?}");
-                                if snapshot.contains("disabled") {
-                                    None
-                                } else {
-                                    Some(snapshot)
-                                }
-                            };
+                            let panic_trace = #panic_trace_expr;
                             ctx.finish(Status::Failed, panic_msg, panic_trace);
                         }
                         std::panic::resume_unwind(panic);
@@ -489,18 +458,12 @@ fn expand_allure_test(
 
                 // Finish the test context with appropriate status
                 if let Some(mut ctx) = take_context() {
-                    let panic_trace = {
-                        let bt = std::backtrace::Backtrace::force_capture();
-                        let snapshot = format!("{bt:?}");
-                        if snapshot.contains("disabled") {
-                            None
-                        } else {
-                            Some(snapshot)
-                        }
-                    };
                     match &result {
-                        Ok(_) => ctx.finish(Status::Passed, None, panic_trace.clone()),
-                        Err(_) => ctx.finish(Status::Failed, panic_msg, panic_trace),
+                        Ok(_) => ctx.finish(Status::Passed, None, None),
+                        Err(_) => {
+                            let panic_trace = #panic_trace_expr;
+                            ctx.finish(Status::Failed, panic_msg, panic_trace)
+                        }
                     }
                 }
 
@@ -692,6 +655,7 @@ fn expand_step(
     } else {
         quote! { #step_name.to_string() }
     };
+    let panic_trace_expr = capture_panic_trace_expr();
 
     if is_async {
         Ok(quote! {
@@ -722,15 +686,7 @@ fn expand_step(
                             Some("Step panicked".to_string())
                         };
                         ::allure_core::runtime::with_context(|ctx| {
-                            let panic_trace = {
-                                let bt = std::backtrace::Backtrace::force_capture();
-                                let snapshot = format!("{bt:?}");
-                                if snapshot.contains("disabled") {
-                                    None
-                                } else {
-                                    Some(snapshot)
-                                }
-                            };
+                            let panic_trace = #panic_trace_expr;
                             ctx.finish_step(
                                 ::allure_core::enums::Status::Failed,
                                 panic_msg,

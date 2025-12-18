@@ -30,5 +30,4 @@ allure-report/
 .env.local
 
 coverage
-target
 lcov.info
