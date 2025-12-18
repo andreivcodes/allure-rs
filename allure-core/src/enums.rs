@@ -431,4 +431,44 @@ mod tests {
         assert_eq!(format!("{}", LabelName::Epic), "epic");
         assert_eq!(format!("{}", LabelName::AllureId), "AS_ID");
     }
+
+    #[test]
+    fn test_stage_pending_and_interrupted_display() {
+        assert_eq!(format!("{}", Stage::Pending), "pending");
+        assert_eq!(format!("{}", Stage::Interrupted), "interrupted");
+    }
+
+    #[test]
+    fn test_content_type_extension_and_image_diff() {
+        assert_eq!(ContentType::ImageDiff.extension(), "imagediff");
+        assert_eq!(ContentType::Zip.extension(), "zip");
+    }
+
+    #[test]
+    fn test_severity_minor_and_trivial() {
+        assert_eq!(Severity::Minor.to_string(), "minor");
+        assert_eq!(Severity::Trivial.to_string(), "trivial");
+    }
+
+    #[test]
+    fn test_status_and_stage_cover_all_variants() {
+        assert_eq!(Status::Skipped.to_string(), "skipped");
+        assert_eq!(Status::Unknown.to_string(), "unknown");
+        assert_eq!(Stage::Scheduled.to_string(), "scheduled");
+    }
+
+    #[test]
+    fn test_content_type_mime_and_extension_variants() {
+        assert_eq!(ContentType::Tsv.as_mime(), "text/tab-separated-values");
+        assert_eq!(ContentType::Css.as_mime(), "text/css");
+        assert_eq!(ContentType::Uri.extension(), "uri");
+        assert_eq!(ContentType::Svg.extension(), "svg");
+    }
+
+    #[test]
+    fn test_label_name_as_str_additional_variants() {
+        assert_eq!(LabelName::Package.as_str(), "package");
+        assert_eq!(LabelName::TestClass.as_str(), "testClass");
+        assert_eq!(LabelName::TestMethod.as_str(), "testMethod");
+    }
 }

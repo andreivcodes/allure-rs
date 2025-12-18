@@ -13,7 +13,7 @@ use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    Attribute, FnArg, ItemFn, ItemMod, Lit, Meta, Pat, ReturnType, Token, Type,
+    Attribute, FnArg, Item, ItemFn, ItemMod, Lit, Meta, Pat, ReturnType, Token, Type,
 };
 
 /// Native Rust test attributes detected on the function
@@ -25,6 +25,8 @@ struct NativeTestAttrs {
     should_panic_expected: Option<String>,
     /// Whether #[ignore] is present
     has_ignore: bool,
+    /// Optional ignore reason from #[ignore = "..."]
+    ignore_reason: Option<String>,
 }
 
 /// Extracts native Rust test attributes from the function's attributes
@@ -52,6 +54,13 @@ fn extract_native_test_attrs(attrs: &[Attribute]) -> NativeTestAttrs {
         // Check for #[ignore] or #[ignore = "reason"]
         if attr.path().is_ident("ignore") {
             result.has_ignore = true;
+            if let Meta::NameValue(meta) = &attr.meta {
+                if let syn::Expr::Lit(expr) = &meta.value {
+                    if let syn::Lit::Str(reason) = &expr.lit {
+                        result.ignore_reason = Some(reason.value());
+                    }
+                }
+            }
         }
     }
 
@@ -75,6 +84,47 @@ fn is_result_return(output: &ReturnType) -> bool {
             }
         }
     }
+}
+
+fn ignore_async_block(
+    has_ignore: bool,
+    ignore_reason_expr: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    quote! {
+        if ::std::hint::black_box(#has_ignore) {
+            let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
+            ::allure_core::runtime::skip(reason);
+            return Ok(None);
+        }
+    }
+}
+
+fn ignore_finish_block(
+    has_ignore: bool,
+    ignore_reason_expr: &proc_macro2::TokenStream,
+    return_stmt: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    quote! {
+        if ::std::hint::black_box(#has_ignore) {
+            let reason = #ignore_reason_expr.unwrap_or_else(|| "Ignored test".to_string());
+            if let Some(mut ctx) = take_context() {
+                ctx.finish(Status::Skipped, Some(reason), None);
+            }
+            #return_stmt
+        }
+    }
+}
+
+fn capture_panic_trace_expr() -> proc_macro2::TokenStream {
+    quote! {{
+        let bt = std::backtrace::Backtrace::force_capture();
+        let snapshot = format!("{bt:?}");
+        if snapshot.contains("disabled") {
+            None
+        } else {
+            Some(snapshot)
+        }
+    }}
 }
 
 /// Attribute macro that wraps a test function with Allure tracking.
@@ -155,53 +205,82 @@ fn expand_allure_test(
 
     // Check if this test returns a Result type
     let returns_result = is_result_return(output);
+    let has_ignore = native_attrs.has_ignore;
+    let ignore_reason = native_attrs.ignore_reason.clone();
+    let ignore_reason_tokens = ignore_reason.clone();
+    let ignore_reason_expr = if let Some(reason) = ignore_reason_tokens {
+        quote!(Some(#reason.to_string()))
+    } else {
+        quote!(None::<String>)
+    };
+    let panic_trace_expr = capture_panic_trace_expr();
+    let ignore_async = ignore_async_block(has_ignore, &ignore_reason_expr);
+    let ignore_should_panic = ignore_finish_block(has_ignore, &ignore_reason_expr, quote!(return;));
+    let ignore_result_return =
+        ignore_finish_block(has_ignore, &ignore_reason_expr, quote!(return Ok(());));
+    let ignore_sync = ignore_finish_block(has_ignore, &ignore_reason_expr, quote!(return;));
 
     if is_async {
         // For async tests - wrap in catch_unwind to handle panics
-        Ok(quote! {
+        let expanded = quote! {
             #(#attrs)*
             #test_attr
             #visibility #sig {
-                use ::allure_core::runtime::{set_context, take_context, TestContext};
+                use ::allure_core::runtime::{take_context, TestContext};
                 use ::allure_core::enums::Status;
                 use ::allure_core::futures::FutureExt;
 
                 // Build full name at runtime using module_path!()
                 let full_name = concat!(module_path!(), "::", #fn_name_str);
                 let ctx = TestContext::new(#test_name, full_name);
-                set_context(ctx);
 
-                #setup_metadata
+                // Run inside a task-local context so spawned tasks inherit it
+                let test_outcome = ::allure_core::runtime::with_async_context(ctx, async {
+                    #setup_metadata
 
-                // Run the async body with panic catching
-                let test_body = async #block;
-                let panic_result = std::panic::AssertUnwindSafe(test_body).catch_unwind().await;
+                    #ignore_async
 
-                match panic_result {
-                    Ok(result) => {
-                        // Test completed successfully
-                        if let Some(mut ctx) = take_context() {
-                            ctx.finish(Status::Passed, None, None);
+                    // Run the async body with panic catching
+                    let test_body = async #block;
+                    let panic_result =
+                        std::panic::AssertUnwindSafe(test_body).catch_unwind().await;
+
+                    match panic_result {
+                        Ok(result) => {
+                            // Test completed successfully (if context still exists)
+                            if let Some(mut ctx) = take_context() {
+                                ctx.finish(Status::Passed, None, None);
+                            }
+                            Ok(Some(result))
                         }
-                        result
-                    }
-                    Err(panic) => {
-                        // Test panicked
-                        let panic_msg = if let Some(s) = panic.downcast_ref::<&str>() {
-                            Some(s.to_string())
-                        } else if let Some(s) = panic.downcast_ref::<String>() {
-                            Some(s.clone())
-                        } else {
-                            Some("Test panicked".to_string())
-                        };
-                        if let Some(mut ctx) = take_context() {
-                            ctx.finish(Status::Failed, panic_msg, None);
+                        Err(panic) => {
+                            // Test panicked
+                            let panic_msg = if let Some(s) = panic.downcast_ref::<&str>() {
+                                Some(s.to_string())
+                            } else if let Some(s) = panic.downcast_ref::<String>() {
+                                Some(s.clone())
+                            } else {
+                                Some("Test panicked".to_string())
+                            };
+                            let panic_trace = #panic_trace_expr;
+                            if let Some(mut ctx) = take_context() {
+                                ctx.finish(Status::Failed, panic_msg, panic_trace);
+                            }
+                            Err(panic)
                         }
-                        std::panic::resume_unwind(panic);
                     }
+                })
+                .await;
+
+                match test_outcome {
+                    Ok(Some(result)) => result,
+                    Ok(None) => return,
+                    Err(panic) => std::panic::resume_unwind(panic),
                 }
             }
-        })
+        };
+
+        Ok(expanded)
     } else if native_attrs.has_should_panic {
         // For #[should_panic] tests - invert the pass/fail logic
         let expected_check = if let Some(ref expected) = native_attrs.should_panic_expected {
@@ -237,6 +316,8 @@ fn expand_allure_test(
 
                 #setup_metadata
 
+                #ignore_should_panic
+
                 // Run the test body and catch panics
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| #block));
 
@@ -267,7 +348,8 @@ fn expand_allure_test(
 
                 // Finish the test context with appropriate status
                 if let Some(mut ctx) = take_context() {
-                    ctx.finish(status, message, None);
+                    let panic_trace = #panic_trace_expr;
+                    ctx.finish(status, message, panic_trace);
                 }
 
                 // Re-panic or panic to match test framework expectations
@@ -279,7 +361,7 @@ fn expand_allure_test(
         })
     } else if returns_result {
         // For tests returning Result<T, E> - handle both Ok and Err
-        Ok(quote! {
+        let expanded = quote! {
             #(#attrs)*
             #test_attr
             #visibility fn #fn_name #generics () #output {
@@ -292,6 +374,8 @@ fn expand_allure_test(
                 set_context(ctx);
 
                 #setup_metadata
+
+                #ignore_result_return
 
                 // Run the test body, catching panics
                 let panic_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| #block));
@@ -308,7 +392,8 @@ fn expand_allure_test(
                         // Result::Err - test failed via error return
                         let error_msg = format!("{:?}", e);
                         if let Some(mut ctx) = take_context() {
-                            ctx.finish(Status::Failed, Some(error_msg), None);
+                            let panic_trace = #panic_trace_expr;
+                            ctx.finish(Status::Failed, Some(error_msg), panic_trace);
                         }
                         Err(e)
                     }
@@ -322,16 +407,19 @@ fn expand_allure_test(
                             Some("Test panicked".to_string())
                         };
                         if let Some(mut ctx) = take_context() {
-                            ctx.finish(Status::Failed, panic_msg, None);
+                            let panic_trace = #panic_trace_expr;
+                            ctx.finish(Status::Failed, panic_msg, panic_trace);
                         }
                         std::panic::resume_unwind(panic);
                     }
                 }
             }
-        })
+        };
+
+        Ok(expanded)
     } else {
         // For regular sync tests - run body once and handle panics properly
-        Ok(quote! {
+        let expanded = quote! {
             #(#attrs)*
             #test_attr
             #visibility fn #fn_name #generics () #output {
@@ -344,6 +432,8 @@ fn expand_allure_test(
                 set_context(ctx);
 
                 #setup_metadata
+
+                #ignore_sync
 
                 // Run the test body once and capture result
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| #block));
@@ -366,7 +456,10 @@ fn expand_allure_test(
                 if let Some(mut ctx) = take_context() {
                     match &result {
                         Ok(_) => ctx.finish(Status::Passed, None, None),
-                        Err(_) => ctx.finish(Status::Failed, panic_msg, None),
+                        Err(_) => {
+                            let panic_trace = #panic_trace_expr;
+                            ctx.finish(Status::Failed, panic_msg, panic_trace)
+                        }
                     }
                 }
 
@@ -375,7 +468,9 @@ fn expand_allure_test(
                     std::panic::resume_unwind(e);
                 }
             }
-        })
+        };
+
+        Ok(expanded)
     }
 }
 
@@ -430,6 +525,9 @@ fn generate_metadata_setup(metadata: &TestMetadata) -> proc_macro2::TokenStream 
     if let Some(ref sub_suite) = metadata.sub_suite {
         setup = quote! { #setup ::allure_core::runtime::sub_suite(#sub_suite); };
     }
+    if let Some(ref severity) = metadata.severity {
+        setup = quote! { #setup ::allure_core::runtime::severity(#severity); };
+    }
     if let Some(ref owner) = metadata.owner {
         setup = quote! { #setup ::allure_core::runtime::owner(#owner); };
     }
@@ -439,11 +537,17 @@ fn generate_metadata_setup(metadata: &TestMetadata) -> proc_macro2::TokenStream 
     if let Some(ref desc) = metadata.description {
         setup = quote! { #setup ::allure_core::runtime::description(#desc); };
     }
+    if let Some(ref desc_html) = metadata.description_html {
+        setup = quote! { #setup ::allure_core::runtime::description_html(#desc_html); };
+    }
     if metadata.flaky {
         setup = quote! { #setup ::allure_core::runtime::flaky(); };
     }
     if metadata.muted {
         setup = quote! { #setup ::allure_core::runtime::muted(); };
+    }
+    if let Some(ref known_issue) = metadata.known_issue {
+        setup = quote! { #setup ::allure_core::runtime::known_issue(#known_issue); };
     }
 
     for tag in &metadata.tags {
@@ -547,6 +651,7 @@ fn expand_step(
     } else {
         quote! { #step_name.to_string() }
     };
+    let panic_trace_expr = capture_panic_trace_expr();
 
     if is_async {
         Ok(quote! {
@@ -577,7 +682,12 @@ fn expand_step(
                             Some("Step panicked".to_string())
                         };
                         ::allure_core::runtime::with_context(|ctx| {
-                            ctx.finish_step(::allure_core::enums::Status::Failed, panic_msg, None)
+                            let panic_trace = #panic_trace_expr;
+                            ctx.finish_step(
+                                ::allure_core::enums::Status::Failed,
+                                panic_msg,
+                                panic_trace,
+                            )
                         });
                         std::panic::resume_unwind(panic);
                     }
@@ -647,11 +757,17 @@ pub fn allure_suite(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn expand_allure_suite(
-    input: ItemMod,
-    _suite_name: String,
+    mut input: ItemMod,
+    suite_name: String,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    // For now, just pass through the module unchanged
-    // The suite metadata will be handled at runtime
+    if let Some((_, items)) = input.content.as_mut() {
+        for item in items.iter_mut() {
+            if let Item::Fn(func) = item {
+                func.attrs
+                    .push(syn::parse_quote!(#[allure_suite_label(#suite_name)]));
+            }
+        }
+    }
     Ok(input.to_token_stream())
 }
 
@@ -1119,5 +1235,180 @@ impl Parse for StepInput {
         let body: proc_macro2::TokenStream = input.parse()?;
 
         Ok(StepInput { name, body })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quote::quote;
+    use syn::punctuated::Punctuated;
+    use syn::{parse_quote, Attribute, FnArg, ItemFn, ReturnType, Token};
+
+    #[test]
+    fn extract_native_attrs_reads_should_panic_and_ignore() {
+        let attrs: Vec<Attribute> = vec![
+            parse_quote!(#[should_panic(expected = "boom")]),
+            parse_quote!(#[ignore = "later"]),
+        ];
+        let parsed = extract_native_test_attrs(&attrs);
+        assert!(parsed.has_should_panic);
+        assert_eq!(parsed.should_panic_expected.as_deref(), Some("boom"));
+        assert!(parsed.has_ignore);
+        assert_eq!(parsed.ignore_reason.as_deref(), Some("later"));
+    }
+
+    #[test]
+    fn is_result_return_detects_result_types() {
+        let result_ty: ReturnType = parse_quote!(-> Result<(), String>);
+        let plain_ty: ReturnType = parse_quote!(-> ());
+        assert!(is_result_return(&result_ty));
+        assert!(!is_result_return(&plain_ty));
+        assert!(!is_result_return(&ReturnType::Default));
+    }
+
+    #[test]
+    fn generate_param_captures_includes_all_idents() {
+        let inputs: Punctuated<FnArg, Token![,]> = parse_quote!(first: i32, second: &str);
+        let tokens = generate_param_captures(&inputs).to_string();
+        assert!(tokens.contains("first"));
+        assert!(tokens.contains("second"));
+    }
+
+    #[test]
+    fn link_args_parses_tuple_and_single_literal() {
+        let tuple_args: LinkArgs = syn::parse2(quote! { "http://example.com", "ISSUE-1" }).unwrap();
+        assert_eq!(tuple_args.url, "http://example.com");
+        assert_eq!(tuple_args.name.as_deref(), Some("ISSUE-1"));
+
+        let single_args: LinkArgs = syn::parse2(quote! { "http://tms" }).unwrap();
+        assert_eq!(single_args.url, "http://tms");
+        assert!(single_args.name.is_none());
+    }
+
+    #[test]
+    fn test_expand_step_sync_branch() {
+        let func: ItemFn = parse_quote! {
+            fn my_step(x: i32) { let _ = x + 1; }
+        };
+        let tokens = expand_step(func, None).unwrap().to_string();
+        assert!(tokens.contains("runtime :: step"));
+        assert!(tokens.contains("my_step"));
+    }
+
+    #[test]
+    fn test_expand_step_custom_name_parsing() {
+        let item: ItemFn = parse_quote! { fn build_user() {} };
+        let tokens = expand_step(item, Some("Do thing".into()))
+            .unwrap()
+            .to_string();
+        assert!(tokens.contains("Do thing"));
+    }
+
+    #[test]
+    fn generate_metadata_setup_emits_all_configured_calls() {
+        let metadata = TestMetadata {
+            epic: Some("Epic".into()),
+            feature: Some("Feature".into()),
+            story: Some("Story".into()),
+            suite: Some("Suite".into()),
+            parent_suite: Some("Parent".into()),
+            sub_suite: Some("Sub".into()),
+            severity: Some("critical".into()),
+            owner: Some("owner".into()),
+            tags: vec!["tag1".into()],
+            id: Some("ID-1".into()),
+            description: Some("desc".into()),
+            description_html: Some("<p>html</p>".into()),
+            issues: vec![("http://issue".into(), Some("Issue".into()))],
+            tms_links: vec![("http://tms".into(), None)],
+            links: vec![("http://link".into(), Some("Link".into()))],
+            flaky: true,
+            muted: true,
+            known_issue: Some("KNOWN".into()),
+        };
+
+        let setup = generate_metadata_setup(&metadata).to_string();
+        for key in [
+            "epic",
+            "feature",
+            "story",
+            "suite",
+            "parent_suite",
+            "sub_suite",
+            "severity",
+            "description_html",
+            "owner",
+            "known_issue",
+            "tag1",
+            "issue",
+            "tms",
+            "link",
+        ] {
+            assert!(
+                setup.contains(key),
+                "metadata setup missing call for {} in `{}`",
+                key,
+                setup
+            );
+        }
+        assert!(setup.contains("flaky"));
+        assert!(setup.contains("muted"));
+    }
+
+    #[test]
+    fn test_expand_allure_test_result_branch() {
+        let func: ItemFn = parse_quote! {
+            fn demo() -> Result<(), String> { Ok(()) }
+        };
+        let tokens = expand_allure_test(func, None).unwrap();
+        let rendered = tokens.to_string();
+        assert!(rendered.contains("Result"));
+        assert!(rendered.contains("finish"));
+    }
+
+    #[test]
+    fn test_expand_allure_test_should_panic_branch() {
+        let func: ItemFn = parse_quote! {
+            #[should_panic(expected = "oops")]
+            fn demo() { panic!("oops") }
+        };
+        let tokens = expand_allure_test(func, None).unwrap();
+        let rendered = tokens.to_string();
+        assert!(rendered.contains("should_panic"));
+        assert!(rendered.contains("TestContext"));
+    }
+
+    #[test]
+    fn test_expand_allure_test_async_branch() {
+        let func: ItemFn = parse_quote! {
+            async fn demo_async() {}
+        };
+        let tokens = expand_allure_test(func, Some("Async Name".into())).unwrap();
+        let rendered = tokens.to_string();
+        assert!(rendered.contains("with_async_context"));
+        assert!(rendered.contains("demo_async"));
+    }
+
+    #[test]
+    fn test_expand_allure_test_sync_branch() {
+        let func: ItemFn = parse_quote! {
+            fn demo_sync() {}
+        };
+        let tokens = expand_allure_test(func, Some("Sync Name".into())).unwrap();
+        let rendered = tokens.to_string();
+        assert!(rendered.contains("demo_sync"));
+        assert!(rendered.contains("finish"));
+    }
+
+    #[test]
+    fn test_expand_step_async_with_interpolation() {
+        let func: ItemFn = parse_quote! {
+            async fn step_fn(x: i32) {}
+        };
+        let tokens = expand_step(func, Some("Value is {x}".into())).unwrap();
+        let rendered = tokens.to_string();
+        assert!(rendered.contains("Value"));
+        assert!(rendered.contains("finish_step"));
     }
 }

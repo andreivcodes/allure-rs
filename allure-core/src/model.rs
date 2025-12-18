@@ -871,4 +871,113 @@ mod tests {
         assert_eq!(category.message_regex, Some(".*timeout.*".to_string()));
         assert_eq!(category.flaky, Some(true));
     }
+
+    #[test]
+    fn test_test_result_fail_and_broken_details() {
+        let mut result = TestResult::new("u1".to_string(), "Name".to_string());
+        result.fail(Some("boom".into()), Some("trace".into()));
+        assert_eq!(result.status, Status::Failed);
+        let details = result.status_details.unwrap();
+        assert_eq!(details.message.as_deref(), Some("boom"));
+        assert_eq!(details.trace.as_deref(), Some("trace"));
+        assert_eq!(result.stage, Stage::Finished);
+
+        let mut broken = TestResult::new("u2".to_string(), "Name2".to_string());
+        broken.broken(None, None);
+        assert_eq!(broken.status, Status::Broken);
+        assert!(broken.status_details.is_none());
+        assert_eq!(broken.stage, Stage::Finished);
+    }
+
+    #[test]
+    fn test_step_result_fail_and_broken_details() {
+        let mut step = StepResult::new("fail-step");
+        step.fail(Some("oops".into()), None);
+        assert_eq!(step.status, Status::Failed);
+        assert_eq!(
+            step.status_details.unwrap().message.as_deref(),
+            Some("oops")
+        );
+
+        let mut broken = StepResult::new("broken-step");
+        broken.broken(None, Some("trace".into()));
+        assert_eq!(broken.status, Status::Broken);
+        assert_eq!(
+            broken.status_details.unwrap().trace.as_deref(),
+            Some("trace")
+        );
+    }
+
+    #[test]
+    fn test_fixture_result_fail_sets_details() {
+        let mut fixture = FixtureResult::new("setup");
+        fixture.fail(Some("failed".into()), Some("trace".into()));
+        assert_eq!(fixture.status, Status::Failed);
+        assert_eq!(fixture.stage, Stage::Finished);
+        let details = fixture.status_details.unwrap();
+        assert_eq!(details.message.as_deref(), Some("failed"));
+        assert_eq!(details.trace.as_deref(), Some("trace"));
+    }
+
+    #[test]
+    fn test_parameter_hidden_flag() {
+        let hidden = Parameter::hidden("secret", "value");
+        assert_eq!(hidden.mode, Some(ParameterMode::Hidden));
+        assert_eq!(hidden.excluded, None);
+    }
+
+    #[test]
+    fn test_link_with_name_and_default() {
+        let named = Link::with_name("https://example.test", "Example");
+        assert_eq!(named.name.as_deref(), Some("Example"));
+        assert_eq!(named.r#type, None);
+
+        let plain = Link::new("https://example.test");
+        assert_eq!(plain.r#type, None);
+    }
+
+    #[test]
+    fn test_test_result_set_status_and_finish() {
+        let mut result = TestResult::new("u3".to_string(), "Name3".to_string());
+        result.set_status(Status::Skipped);
+        result.finish();
+        assert_eq!(result.status, Status::Skipped);
+        assert_eq!(result.stage, Stage::Finished);
+        assert!(result.stop >= result.start);
+    }
+
+    #[test]
+    fn test_label_constructors_cover_all_variants() {
+        let labels = vec![
+            Label::story("story"),
+            Label::suite("suite"),
+            Label::parent_suite("parent"),
+            Label::sub_suite("sub"),
+            Label::owner("owner"),
+            Label::tag("tag"),
+            Label::allure_id("123"),
+            Label::host("localhost"),
+            Label::thread("thread-1"),
+            Label::framework("framework"),
+            Label::language("rust"),
+            Label::package("pkg"),
+            Label::test_class("cls"),
+            Label::test_method("meth"),
+        ];
+        assert_eq!(labels.len(), 14);
+        assert!(labels.iter().any(|l| l.name == "testMethod"));
+        assert!(labels.iter().any(|l| l.name == "package"));
+    }
+
+    #[test]
+    fn test_parameter_new_and_link_tms() {
+        let param = Parameter::new("key", "val");
+        assert_eq!(param.name, "key");
+        assert!(param.mode.is_none());
+        assert!(param.excluded.is_none());
+
+        let tms = Link::tms("https://tms", Some("TMS-1".into()));
+        assert_eq!(tms.r#type, Some(LinkType::Tms));
+        assert_eq!(tms.name.as_deref(), Some("TMS-1"));
+    }
 }

@@ -25,3 +25,6 @@ futures = { version = "0.3", default-features = false, optional = true }
 default = []
 tokio = ["dep:tokio"]
 async = ["dep:futures"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
